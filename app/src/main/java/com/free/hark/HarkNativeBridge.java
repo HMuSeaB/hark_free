@@ -34,6 +34,11 @@ public class HarkNativeBridge {
     }
 
     @JavascriptInterface
+    public void onTokenUsageSync(String slotId, long used, long limit, String resetsAt) {
+        new com.free.hark.token.TokenTracker(activity).saveSlotUsage(slotId, used, limit, resetsAt);
+    }
+
+    @JavascriptInterface
     public void onExportSuccess(String filename, String content, int count) {
         boolean saved = saveToDownloads(filename, content);
         activity.runOnUiThread(() -> {

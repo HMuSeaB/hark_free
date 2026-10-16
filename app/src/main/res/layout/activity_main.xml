@@ -5,32 +5,101 @@
     android:layout_height="match_parent"
     android:background="@color/background"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:padding="16dp">
 
-    <!-- 顶部标题 -->
+    <!-- 顶部标题与极客快捷操作 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingTop="24dp"
-        android:paddingBottom="16dp">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="16dp"
+        android:paddingBottom="12dp">
 
-        <TextView
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="HarkFree"
+                android:textColor="@color/text_primary"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/app_subtitle"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- 终端入口 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_open_term"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="HarkFree"
-            android:textColor="@color/text_primary"
-            android:textSize="28sp"
-            android:textStyle="bold" />
+            android:layout_marginEnd="6dp"
+            android:text="Linux终端"
+            android:textColor="#3DDC84"
+            android:textSize="12sp"
+            app:strokeColor="#3DDC84" />
 
-        <TextView
+        <!-- 局域网互传开关 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_toggle_server"
+            style="@style/Widget.MaterialComponents.Button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="@string/app_subtitle"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
+            android:backgroundTint="#07C160"
+            android:text="启动互传"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
     </LinearLayout>
+
+    <!-- 局域网服务状态卡片 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/card_server_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="#16251C"
+        app:cardCornerRadius="12dp"
+        app:strokeColor="#07C160"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚡ 电脑-手机极速互传已启动"
+                android:textColor="#3DDC84"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_server_url"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="电脑浏览器打开: http://192.168.x.x:8080"
+                android:textColor="#F4F4F5"
+                android:textSize="13sp"
+                android:textStyle="italic" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <ScrollView
         android:layout_width="match_parent"
@@ -48,7 +117,7 @@
                 android:id="@+id/card_slot0"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="10dp"
                 android:clickable="true"
                 android:focusable="true"
                 app:cardBackgroundColor="@color/card_bg"
@@ -60,42 +129,60 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="18dp">
-
-                    <TextView
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:background="@drawable/badge_circle_1"
-                        android:gravity="center"
-                        android:text="1"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
                         <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/slot_1"
-                            android:textColor="@color/text_primary"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/badge_circle_1"
+                            android:gravity="center"
+                            android:text="1"
+                            android:textColor="#FFFFFF"
                             android:textSize="16sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="独立进程 :slot0 · 隔离存储"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
+                            android:layout_marginStart="14dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/slot_1"
+                                android:textColor="@color/text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tv_usage_0"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:text="独立进程 :slot0 · 点击进入"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
                     </LinearLayout>
+
+                    <ProgressBar
+                        android:id="@+id/pb_usage_0"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="4dp"
+                        android:layout_marginTop="10dp"
+                        android:max="100"
+                        android:progress="0"
+                        android:progressDrawable="@drawable/progress_bar_drawable" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -104,7 +191,7 @@
                 android:id="@+id/card_slot1"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="10dp"
                 android:clickable="true"
                 android:focusable="true"
                 app:cardBackgroundColor="@color/card_bg"
@@ -116,42 +203,60 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="18dp">
-
-                    <TextView
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:background="@drawable/badge_circle_2"
-                        android:gravity="center"
-                        android:text="2"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
                         <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/slot_2"
-                            android:textColor="@color/text_primary"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/badge_circle_2"
+                            android:gravity="center"
+                            android:text="2"
+                            android:textColor="#FFFFFF"
                             android:textSize="16sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="独立进程 :slot1 · 隔离存储"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
+                            android:layout_marginStart="14dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/slot_2"
+                                android:textColor="@color/text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tv_usage_1"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:text="独立进程 :slot1 · 点击进入"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
                     </LinearLayout>
+
+                    <ProgressBar
+                        android:id="@+id/pb_usage_1"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="4dp"
+                        android:layout_marginTop="10dp"
+                        android:max="100"
+                        android:progress="0"
+                        android:progressDrawable="@drawable/progress_bar_drawable" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -160,7 +265,7 @@
                 android:id="@+id/card_slot2"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="10dp"
                 android:clickable="true"
                 android:focusable="true"
                 app:cardBackgroundColor="@color/card_bg"
@@ -172,42 +277,60 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="18dp">
-
-                    <TextView
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:background="@drawable/badge_circle_3"
-                        android:gravity="center"
-                        android:text="3"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
                         <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/slot_3"
-                            android:textColor="@color/text_primary"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/badge_circle_3"
+                            android:gravity="center"
+                            android:text="3"
+                            android:textColor="#FFFFFF"
                             android:textSize="16sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="独立进程 :slot2 · 隔离存储"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
+                            android:layout_marginStart="14dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/slot_3"
+                                android:textColor="@color/text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tv_usage_2"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:text="独立进程 :slot2 · 点击进入"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
                     </LinearLayout>
+
+                    <ProgressBar
+                        android:id="@+id/pb_usage_2"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="4dp"
+                        android:layout_marginTop="10dp"
+                        android:max="100"
+                        android:progress="0"
+                        android:progressDrawable="@drawable/progress_bar_drawable" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -216,7 +339,7 @@
                 android:id="@+id/card_slot3"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="10dp"
                 android:clickable="true"
                 android:focusable="true"
                 app:cardBackgroundColor="@color/card_bg"
@@ -228,42 +351,60 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="18dp">
-
-                    <TextView
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:background="@drawable/badge_circle_4"
-                        android:gravity="center"
-                        android:text="4"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
                         <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/slot_4"
-                            android:textColor="@color/text_primary"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/badge_circle_4"
+                            android:gravity="center"
+                            android:text="4"
+                            android:textColor="#FFFFFF"
                             android:textSize="16sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="独立进程 :slot3 · 隔离存储"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
+                            android:layout_marginStart="14dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/slot_4"
+                                android:textColor="@color/text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tv_usage_3"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:text="独立进程 :slot3 · 点击进入"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
                     </LinearLayout>
+
+                    <ProgressBar
+                        android:id="@+id/pb_usage_3"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="4dp"
+                        android:layout_marginTop="10dp"
+                        android:max="100"
+                        android:progress="0"
+                        android:progressDrawable="@drawable/progress_bar_drawable" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -275,9 +416,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:paddingTop="12dp"
-        android:text="开源方案 · 纯净无后门 · 无任何卡密收费"
+        android:paddingTop="8dp"
+        android:text="HarkFree 全功能版 · 包含 Linux 容器、Web 互传与穿透 · 100% 免费开源"
         android:textColor="@color/text_secondary"
-        android:textSize="12sp" />
+        android:textSize="11sp" />
 
 </LinearLayout>

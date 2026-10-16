@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0A0A0C"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- 顶部标题与返回 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/btn_term_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_revert"
+            app:tint="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/tv_term_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="Alpine Linux 极客终端 (PRoot)"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_install_linux"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="一键安装"
+            android:textColor="#3DDC84"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- 安装进度条 -->
+    <ProgressBar
+        android:id="@+id/pb_install"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:max="100"
+        android:visibility="gone" />
+
+    <!-- 快捷命令栏 -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_uname"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:text="uname -a"
+                app:chipBackgroundColor="@color/card_bg"
+                android:textColor="#F4F4F5" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_update"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:text="apk update"
+                app:chipBackgroundColor="@color/card_bg"
+                android:textColor="#F4F4F5" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_python"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:text="apk add python3"
+                app:chipBackgroundColor="@color/card_bg"
+                android:textColor="#F4F4F5" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_df"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="df -h"
+                app:chipBackgroundColor="@color/card_bg"
+                android:textColor="#F4F4F5" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- 终端输出框 -->
+    <ScrollView
+        android:id="@+id/sv_output"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="10dp"
+        android:layout_weight="1"
+        android:background="#050506"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tv_term_output"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="#7CF0B1"
+            android:textSize="13sp" />
+    </ScrollView>
+
+    <!-- 底部命令输入框 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/et_term_cmd"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="#16161A"
+            android:fontFamily="monospace"
+            android:hint="输入命令..."
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#666666"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btn_term_send"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="#07C160"
+            android:text="执行"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+</LinearLayout>

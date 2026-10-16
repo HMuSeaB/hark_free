@@ -65,6 +65,13 @@
             android:taskAffinity="com.free.hark.slot3"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- 极客 Alpine Linux 原生终端界面 -->
+        <activity
+            android:name=".linux.TermActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
     </application>
 
 </manifest>

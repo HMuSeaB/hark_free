@@ -55,6 +55,12 @@ public abstract class SlotActivity extends AppCompatActivity {
         }
         tvSlotTitle.setText(slotName);
 
+        String slotId = getIntent().getStringExtra("SLOT_ID");
+        if (slotId == null || slotId.isEmpty()) {
+            slotId = "slot0";
+        }
+        final String currentSlotId = slotId;
+
         btnBack.setOnClickListener(v -> {
             if (webView.canGoBack()) {
                 webView.goBack();
@@ -69,11 +75,11 @@ public abstract class SlotActivity extends AppCompatActivity {
         // 执行 Markdown 导出引擎
         btnExportMd.setOnClickListener(v -> runExportEngine());
 
-        initWebView();
+        initWebView(currentSlotId);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private void initWebView() {
+    private void initWebView(String currentSlotId) {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -104,8 +110,9 @@ public abstract class SlotActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                // 页面加载完成时注入气泡归属检测脚本
+                // 页面加载完成时注入气泡归属检测脚本与Token同步脚本
                 injectBubbleObserver();
+                injectTokenSync(currentSlotId);
                 if (isWeChatStyleActive) {
                     injectWeChatCss();
                 }
@@ -114,6 +121,25 @@ public abstract class SlotActivity extends AppCompatActivity {
 
         // 加载 Hark 官方网址
         webView.loadUrl("https://hark.com/");
+    }
+
+    private void injectTokenSync(String slotId) {
+        String script = "(async function() {" +
+                "  try {" +
+                "    var resp = await fetch('/api/users/me', {credentials: 'include'});" +
+                "    if(!resp.ok) return;" +
+                "    var data = await resp.json();" +
+                "    var meters = data.meters || {};" +
+                "    var tokens = meters.harkTokens || {};" +
+                "    var limit = tokens.dailyLimit || 0;" +
+                "    var used = tokens.dailyUsed || 0;" +
+                "    var reset = tokens.dailyResetsAt || '';" +
+                "    if(window.HarkNativeBridge && window.HarkNativeBridge.onTokenUsageSync) {" +
+                "      window.HarkNativeBridge.onTokenUsageSync('" + slotId + "', used, limit, reset);" +
+                "    }" +
+                "  } catch(e) {}" +
+                "})();";
+        webView.evaluateJavascript(script, null);
     }
 
     /**
