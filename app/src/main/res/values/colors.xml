@@ -1,0 +1,11 @@
+<resources>
+    <color name="primary">#07C160</color>
+    <color name="primary_variant">#06AD56</color>
+    <color name="secondary">#3DDC84</color>
+    <color name="background">#0B0B0C</color>
+    <color name="card_bg">#18181C</color>
+    <color name="card_border">#2A2A30</color>
+    <color name="text_primary">#F4F4F5</color>
+    <color name="text_secondary">#9A9AA3</color>
+    <color name="accent_green">#95EC69</color>
+</resources>

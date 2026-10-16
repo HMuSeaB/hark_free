@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 仅申请基础网络权限，零多余敏感权限 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.HarkFree"
+        android:usesCleartextTraffic="false">
+
+        <!-- 主控制台界面 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 独立进程槽位 1：物理隔离 Cookie 与 LocalStorage -->
+        <activity
+            android:name=".SlotActivity$Slot0"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:process=":slot0"
+            android:taskAffinity="com.free.hark.slot0"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 独立进程槽位 2 -->
+        <activity
+            android:name=".SlotActivity$Slot1"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:process=":slot1"
+            android:taskAffinity="com.free.hark.slot1"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 独立进程槽位 3 -->
+        <activity
+            android:name=".SlotActivity$Slot2"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:process=":slot2"
+            android:taskAffinity="com.free.hark.slot2"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 独立进程槽位 4 -->
+        <activity
+            android:name=".SlotActivity$Slot3"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:process=":slot3"
+            android:taskAffinity="com.free.hark.slot3"
+            android:windowSoftInputMode="adjustResize" />
+
+    </application>
+
+</manifest>

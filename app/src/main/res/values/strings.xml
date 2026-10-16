@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">HarkFree</string>
+    <string name="slot_1">账号槽位 1</string>
+    <string name="slot_2">账号槽位 2</string>
+    <string name="slot_3">账号槽位 3</string>
+    <string name="slot_4">账号槽位 4</string>
+    <string name="app_subtitle">开源、纯净、无限制的多账号 Hark 客户端</string>
+    <string name="export_btn">导出 Markdown</string>
+    <string name="theme_btn">仿微信样式</string>
+    <string name="clear_cache">清理缓存</string>
+</resources>
