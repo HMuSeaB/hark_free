@@ -1,0 +1,157 @@
+name: Build and Release APK
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish to GitHub Release"
+        required: false
+        type: boolean
+        default: true
+      version_tag:
+        description: "Custom Release Tag (e.g. v1.0.0)"
+        required: false
+        default: ""
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
+      - name: Ensure Gradle Wrapper
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "Generating Gradle Wrapper..."
+            gradle wrapper --gradle-version 8.5
+          fi
+          chmod +x gradlew
+
+      - name: Build Release APK
+        run: |
+          ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Prepare Release Artifacts
+        id: prep
+        run: |
+          # 提取 versionName
+          VERSION=$(grep 'versionName' app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -n "${{ inputs.version_tag }}" ]; then
+            TAG="${{ inputs.version_tag }}"
+          elif [ -n "$VERSION" ]; then
+            TAG="v${VERSION}"
+          else
+            TAG="v1.0.0"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          mkdir -p dist
+          APK_SRC="app/build/outputs/apk/release/app-release.apk"
+          APK_DEST="dist/HarkFree-${TAG}.apk"
+
+          if [ ! -f "$APK_SRC" ]; then
+            echo "Error: $APK_SRC not found!"
+            ls -la app/build/outputs/apk/release/ || true
+            exit 1
+          fi
+
+          cp "$APK_SRC" "$APK_DEST"
+          cd dist
+          sha256sum "HarkFree-${TAG}.apk" > "HarkFree-${TAG}.apk.sha256"
+          cd ..
+
+          echo "APK generated: $APK_DEST"
+          ls -lh dist/
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hark-free-apk
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') || inputs.publish_release == true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.prep.outputs.tag }}
+        run: |
+          TITLE="HarkFree ${TAG} (Android 纯净开源版)"
+
+          NOTES=$(cat << 'EOF'
+          ## 🌟 HarkFree - 真正干净、纯净自由的 Hark 体验
+
+          HarkFree 是一套基于 Android 原生架构全量净室重构（Clean-room Rewrite）的 100% 开源客户端。无任何收费套路、无卡密后门、无强制绑定，完整保留并强化原版硬核极客价值。
+
+          ---
+
+          ### ✨ 核心功能特性
+
+          1. **🗂️ 独立多进程账号槽位 (`:slot0` ~ `:slot3`)**：
+             - 每一个槽位运行在独立的 Android 沙箱进程中；
+             - Cookie 与本地存储彻底隔离，多个小号丝滑秒切、互不干扰。
+
+          2. **🎨 现代对话交互与会话归档**：
+             - 优化注入清新微信绿对话气泡，告别原版生硬纯白样式；
+             - 彻底拦截弹窗打断，一键将对话无损导出为标准 Markdown 与 JSON；
+             - 自动归档至手机系统目录 `Download/HarkFree/`。
+
+          3. **⚡ 局域网 Web 免数据线互传服务 (`:8080`)**：
+             - 内置轻量多线程 HTTP 1.1 服务；
+             - 电脑浏览器直接打开手机 IP，免插 USB 即可双向拖拽上传/下载会话与文件。
+
+          4. **🌐 静态站点托管宿主**：
+             - 将手机打造为随身微型服务器，直接托管并预览 `Download/HarkFree/sites/` 下的 HTML/CSS/JS 项目。
+
+          5. **🐧 免 Root Alpine Linux 极客终端**：
+             - 基于开源 PRoot 引擎，仅 ~390KB 原生库底座；
+             - 免 Root 一键拉取清华镜像源的 Alpine rootfs (~3.5MB)，提供完整极客终端控制台与常用运维指令。
+
+          6. **📊 官方 Token 额度实时监控**：
+             - 直观显示每日额度用量进度条与每日重置倒计时。
+
+          ---
+
+          ### 📦 安装包与完整性说明
+          - **安装包**：下载下方 `HarkFree-*.apk`，在 Android 手机上点击即可直接安装。
+          - **SHA256 校验**：请比对附带的 `.sha256` 保证文件完整无损。
+          EOF
+          )
+
+          echo "Checking release for $TAG..."
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG exists, uploading assets..."
+            gh release upload "$TAG" dist/* --clobber
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" dist/* \
+              --title "$TITLE" \
+              --notes "$NOTES"
+          fi
