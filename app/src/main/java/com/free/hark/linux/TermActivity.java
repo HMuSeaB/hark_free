@@ -54,7 +54,7 @@ public class TermActivity extends AppCompatActivity {
 
         checkStatus();
 
-        btnInstall.setOnClickListener(v -> installAlpine());
+        btnInstall.setOnClickListener(v -> pickDistro());
         btnSend.setOnClickListener(v -> {
             String cmd = etCmd.getText().toString().trim();
             if (!cmd.isEmpty()) {
@@ -63,29 +63,40 @@ public class TermActivity extends AppCompatActivity {
             }
         });
 
-        // 快捷命令
+        // 快捷命令(Alpine 用 apk,Debian/Ubuntu 用 apt)
         findViewById(R.id.chip_uname).setOnClickListener(v -> runCommand("uname -a"));
-        findViewById(R.id.chip_update).setOnClickListener(v -> runCommand("apk update"));
-        findViewById(R.id.chip_python).setOnClickListener(v -> runCommand("apk add python3 py3-pip"));
+        findViewById(R.id.chip_update).setOnClickListener(v -> runCommand("command -v apk >/dev/null && apk update || (apt-get update)"));
+        findViewById(R.id.chip_python).setOnClickListener(v -> runCommand("command -v apk >/dev/null && apk add python3 py3-pip || (apt-get update && apt-get install -y python3 python3-pip)"));
         findViewById(R.id.chip_df).setOnClickListener(v -> runCommand("df -h"));
     }
 
     private void checkStatus() {
+        LinuxManager.Distro active = linuxManager.getActiveDistro();
         if (linuxManager.isInstalled()) {
             btnInstall.setVisibility(View.GONE);
-            appendOutput("=== Alpine Linux 极客环境已就绪 ===\n输入命令或点击快捷命令即可在容器中执行。\n\n");
+            appendOutput("=== " + active.title + " 极客环境已就绪 ===\n输入命令或点击快捷命令即可在容器中执行。\n\n");
         } else {
             btnInstall.setVisibility(View.VISIBLE);
-            appendOutput("=== 尚未安装 Alpine Linux ===\n点击右上角「一键安装」即可从清华大学镜像源下载极简 rootfs (~3.5MB)。\n\n");
+            appendOutput("=== 尚未安装 Linux 容器 ===\n点击右上角「一键安装」选择发行版:\n· Alpine(约 3.5MB,极小极快)\n· Debian 13(约 90MB,最稳软件最全)\n· Ubuntu 24.04(约 30MB)\n均为国内镜像三级回退,免 Root。\n\n");
         }
     }
 
-    private void installAlpine() {
+    private void pickDistro() {
+        final LinuxManager.Distro[] distros = LinuxManager.Distro.values();
+        String[] titles = new String[distros.length];
+        for (int i = 0; i < distros.length; i++) titles[i] = distros[i].title;
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("选择 Linux 发行版")
+                .setItems(titles, (d, which) -> installDistro(distros[which]))
+                .show();
+    }
+
+    private void installDistro(LinuxManager.Distro distro) {
         pbInstall.setVisibility(View.VISIBLE);
         pbInstall.setProgress(0);
         btnInstall.setEnabled(false);
 
-        linuxManager.installAlpine(new LinuxManager.ProgressCallback() {
+        linuxManager.installDistro(distro, new LinuxManager.ProgressCallback() {
             @Override
             public void onProgress(String message, int percentage) {
                 mainHandler.post(() -> {
@@ -100,7 +111,7 @@ public class TermActivity extends AppCompatActivity {
                     pbInstall.setVisibility(View.GONE);
                     btnInstall.setVisibility(View.GONE);
                     Toast.makeText(TermActivity.this, "Linux 容器安装完成！", Toast.LENGTH_SHORT).show();
-                    appendOutput("\n[就绪] Alpine Linux 环境配置完毕，输入命令即可开始使用！\n\n");
+                    appendOutput("\n[就绪] Linux 容器安装完成，输入命令即可开始使用！\n\n");
                 });
             }
 
@@ -118,7 +129,7 @@ public class TermActivity extends AppCompatActivity {
 
     private void runCommand(String cmd) {
         if (!linuxManager.isInstalled()) {
-            Toast.makeText(this, "请先点击右上角安装 Alpine Linux 环境", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "请先点击右上角安装 Linux 容器", Toast.LENGTH_SHORT).show();
             return;
         }
 
