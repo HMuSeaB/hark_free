@@ -134,6 +134,14 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "服务已启动: " + url, Toast.LENGTH_LONG).show();
             // 前台保活:防止系统回收进程断线
             startForegroundService(new Intent(this, KeepAliveService.class));
+            // 引导加入电池优化白名单(对标 HarkMulti"取消电池优化防断线")
+            try {
+                android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
+                if (!pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    startActivity(new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            android.net.Uri.parse("package:" + getPackageName())));
+                }
+            } catch (Exception ignored) {}
             // Cloudflare 隧道:把互传/控制台发布到公网,Agent 可从任何网络连入(令牌保护仍生效)
             tunnelManager.startTunnel(8080, new TunnelManager.TunnelCallback() {
                 @Override
