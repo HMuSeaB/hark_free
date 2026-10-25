@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.free.hark.linux.TermActivity;
 import com.free.hark.server.LocalHttpServer;
 import com.free.hark.token.TokenTracker;
+import com.free.hark.tunnel.TunnelManager;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 
@@ -34,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
     private MaterialCardView cardServerStatus;
     private TextView tvServerUrl;
     private TokenTracker tokenTracker;
+    private TunnelManager tunnelManager;
 
     private TextView tvUsage0, tvUsage1, tvUsage2, tvUsage3;
     private ProgressBar pbUsage0, pbUsage1, pbUsage2, pbUsage3;
@@ -45,6 +47,7 @@ public class MainActivity extends AppCompatActivity {
 
         tokenTracker = new TokenTracker(this);
         httpServer = new LocalHttpServer(this, 8080);
+        tunnelManager = new TunnelManager(this);
 
         MaterialCardView cardSlot0 = findViewById(R.id.card_slot0);
         MaterialCardView cardSlot1 = findViewById(R.id.card_slot1);
@@ -125,8 +128,21 @@ public class MainActivity extends AppCompatActivity {
                 String url = "http://" + ip + ":8080/?t=" + httpServer.getAccessToken();
                 tvServerUrl.setText("电脑浏览器打开: " + url);
                 cardServerStatus.setVisibility(View.VISIBLE);
-                btnToggleServer.setText("关闭互传");
-                Toast.makeText(this, "服务已启动: " + url, Toast.LENGTH_LONG).show();
+            btnToggleServer.setText("关闭互传");
+            Toast.makeText(this, "服务已启动: " + url, Toast.LENGTH_LONG).show();
+            // Cloudflare 隧道:把互传/控制台发布到公网,Agent 可从任何网络连入(令牌保护仍生效)
+            tunnelManager.startTunnel(8080, new TunnelManager.TunnelCallback() {
+                @Override
+                public void onUrlResolved(String publicUrl) {
+                    runOnUiThread(() -> tvServerUrl.append("\n公网桥接: " + publicUrl + "/?t=" + httpServer.getAccessToken()));
+                }
+                @Override
+                public void onStopped() {}
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "公网桥接失败: " + error, Toast.LENGTH_SHORT).show());
+                }
+            });
             } catch (Exception e) {
                 Toast.makeText(this, "启动服务失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
