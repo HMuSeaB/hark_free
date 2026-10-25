@@ -3,14 +3,18 @@ package com.free.hark;
 import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.view.View;
+import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import org.json.JSONObject;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -51,6 +55,7 @@ public abstract class SlotActivity extends AppCompatActivity {
 
         ImageButton btnBack = findViewById(R.id.btn_back);
         TextView tvSlotTitle = findViewById(R.id.tv_slot_title);
+        tvSlotTitle.setOnLongClickListener(v -> { showProfileDialog(); return true; });
         btnToggleStyle = findViewById(R.id.btn_toggle_style);
         MaterialButton btnExportMd = findViewById(R.id.btn_export_md);
         progressBar = findViewById(R.id.web_progress);
@@ -262,6 +267,127 @@ public abstract class SlotActivity extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // ===== 账号档案(HarkMulti 同款机制的自研实现):Cookie 快照/恢复,单槽位无限账号秒切 =====
+
+    private String profilePrefsKey() {
+        return "slot_profiles_" + currentSlotId;
+    }
+
+    private JSONObject loadProfiles() {
+        try {
+            return new JSONObject(getSharedPreferences("hark_profiles", MODE_PRIVATE).getString(profilePrefsKey(), "{}"));
+        } catch (Exception e) {
+            return new JSONObject();
+        }
+    }
+
+    private void saveProfiles(JSONObject profiles) {
+        getSharedPreferences("hark_profiles", MODE_PRIVATE)
+                .edit().putString(profilePrefsKey(), profiles.toString()).apply();
+    }
+
+    private void showProfileDialog() {
+        JSONObject profiles = loadProfiles();
+        java.util.List<String> names = new java.util.ArrayList<>();
+        java.util.Iterator<String> it = profiles.keys();
+        while (it.hasNext()) names.add(it.next());
+        String[] items = new String[names.size() + 2];
+        for (int i = 0; i < names.size(); i++) items[i] = "切换 → " + names.get(i);
+        items[names.size()] = "💾 保存当前登录为新档案";
+        if (names.size() > 0) items[names.size() + 1] = "🗑 删除档案…";
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("账号档案")
+                .setItems(items, (d, which) -> {
+                    if (which < names.size()) {
+                        loadProfile(names.get(which));
+                    } else if (which == names.size()) {
+                        promptSaveProfile();
+                    } else {
+                        promptDeleteProfile(names);
+                    }
+                })
+                .show();
+    }
+
+    private void promptSaveProfile() {
+        final EditText input = new EditText(this);
+        input.setHint("档案名(如:工作号)");
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("保存当前登录为档案")
+                .setView(input)
+                .setPositiveButton("保存", (d, w) -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty()) {
+                        Toast.makeText(this, "名称不能为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    saveProfile(name);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void saveProfile(String name) {
+        try {
+            CookieManager cm = CookieManager.getInstance();
+            cm.flush();
+            JSONObject profiles = loadProfiles();
+            JSONObject snap = new JSONObject();
+            snap.put("hark", cm.getCookie("https://hark.com") == null ? "" : cm.getCookie("https://hark.com"));
+            snap.put("auth", cm.getCookie("https://auth.hark.com") == null ? "" : cm.getCookie("https://auth.hark.com"));
+            snap.put("savedAt", System.currentTimeMillis());
+            profiles.put(name, snap);
+            saveProfiles(profiles);
+            Toast.makeText(this, "已保存档案「" + name + "」", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void loadProfile(String name) {
+        try {
+            JSONObject profiles = loadProfiles();
+            JSONObject snap = profiles.optJSONObject(name);
+            if (snap == null) {
+                Toast.makeText(this, "档案不存在", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            CookieManager cm = CookieManager.getInstance();
+            cm.setAcceptCookie(true);
+            cm.removeAllCookies(v -> {});
+            cm.flush();
+            restoreCookies(cm, "https://hark.com", snap.optString("hark", ""));
+            restoreCookies(cm, "https://auth.hark.com", snap.optString("auth", ""));
+            cm.flush();
+            Toast.makeText(this, "已切换到档案「" + name + "」", Toast.LENGTH_SHORT).show();
+            webView.loadUrl("https://hark.com/");
+        } catch (Exception e) {
+            Toast.makeText(this, "切换失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void restoreCookies(CookieManager cm, String url, String saved) {
+        if (saved == null || saved.isEmpty()) return;
+        for (String pair : saved.split("; ")) {
+            if (!pair.isEmpty()) cm.setCookie(url, pair + "; Path=/");
+        }
+    }
+
+    private void promptDeleteProfile(java.util.List<String> names) {
+        String[] arr = names.toArray(new String[0]);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("删除哪个档案?")
+                .setItems(arr, (d, which) -> {
+                    try {
+                        JSONObject profiles = loadProfiles();
+                        profiles.remove(names.get(which));
+                        saveProfiles(profiles);
+                        Toast.makeText(this, "已删除", Toast.LENGTH_SHORT).show();
+                    } catch (Exception ignored) {}
+                })
+                .show();
     }
 
     /**
