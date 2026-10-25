@@ -11,11 +11,26 @@
     }
 
     async function apiJson(url) {
-        var resp = await fetch(url, { credentials: 'include' });
-        if (!resp.ok) {
-            throw new Error('HTTP ' + resp.status + ' 当请求: ' + url.split('?')[0]);
+        var lastErr = null;
+        // Cloudflare 对 WebView 偶发 403/503 质询,自动重试一次
+        for (var attempt = 0; attempt < 2; attempt++) {
+            try {
+                var resp = await fetch(url, { credentials: 'include' });
+                if (resp.status === 403 || resp.status === 503) {
+                    throw new Error('HTTP ' + resp.status + ' (Cloudflare 质询,自动重试中) 当请求: ' + url.split('?')[0]);
+                }
+                if (!resp.ok) {
+                    throw new Error('HTTP ' + resp.status + ' 当请求: ' + url.split('?')[0]);
+                }
+                return await resp.json();
+            } catch (err) {
+                lastErr = err;
+                if (attempt === 0) {
+                    await new Promise(function(r) { setTimeout(r, 1500); });
+                }
+            }
         }
-        return resp.json();
+        throw lastErr;
     }
 
     function formatTime(t) {
@@ -31,18 +46,14 @@
         var cursor = null;
         var page = 0;
 
-        while (page < 100) {
+        while (page < 300) {
             var url = '/api/messages/history?conversationId=' + encodeURIComponent(convId) + '&v=2';
             if (cursor) {
                 url += '&before=' + encodeURIComponent(cursor.id) + '&beforeCreatedAt=' + cursor.createdAt;
             }
 
-            var data;
-            try {
-                data = await apiJson(url);
-            } catch (err) {
-                break;
-            }
+            // 失败必须上抛:静默中断会让用户只看到"已读取 0 条"
+            var data = await apiJson(url);
 
             page++;
             var list = Array.isArray(data.messages) ? data.messages : Object.values(data.messages || {});
@@ -66,6 +77,14 @@
         return messages.sort(function(a, b) {
             return (a.timestamp || 0) - (b.timestamp || 0);
         });
+    }
+
+    // 过滤规则与 HarkMulti 已验证实现一致:跳过流式占位/任务态消息
+    function keep(m) {
+        if (m.role === 'user') return true;
+        if (m.role !== 'assistant') return false;
+        if (m.jobStatus || m.isStreaming) return false;
+        return !!(m.content && m.content.trim()) || (m.attachments && m.attachments.length);
     }
 
     function buildMarkdown(title, convId, msgs) {
@@ -126,6 +145,7 @@
         var title = matched ? (matched.title || 'Hark会话') : (targetConvId === mainId ? '主聊天' : 'Hark会话');
 
         var msgs = await fetchHistory(targetConvId, title);
+        msgs = msgs.filter(keep);
         if (!msgs.length) {
             throw new Error('未读取到任何有效消息');
         }

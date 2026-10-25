@@ -87,6 +87,8 @@ public abstract class SlotActivity extends AppCompatActivity {
 
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebView(String currentSlotId) {
+        // WebView 远程调试:USB 连接电脑后 chrome://inspect 可直接查看真实 DOM(样式/导出契约取证)
+        android.webkit.WebView.setWebContentsDebuggingEnabled(true);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -168,25 +170,54 @@ public abstract class SlotActivity extends AppCompatActivity {
     }
 
     /**
-     * 注入气泡定位与左右对齐脚本
+     * 注入气泡定位脚本:API 文本匹配优先(准确),几何回退(兜底)
      */
     private void injectBubbleObserver() {
         String script = "(function() {" +
+                "var HM = window.__harkFree = window.__harkFree || {};" +
+                "function norm(s){return (s||'').replace(/\\s+/g,' ').trim().slice(0,120);}" +
                 "function tagBubbles() {" +
                 "  var W = window.innerWidth;" +
                 "  var bubbles = document.querySelectorAll('[data-testid=message-bubble]');" +
+                "  var map = HM.roleMap || {};" +
                 "  for(var i=0; i<bubbles.length; i++) {" +
                 "    var b = bubbles[i];" +
-                "    var t = b.querySelector('[data-testid=message-text]');" +
-                "    if(t && !b.hasAttribute('data-hm-side')) {" +
+                "    var t = b.querySelector('[data-testid=message-text]') || b;" +
+                "    var side = map[norm(t.innerText)];" +
+                "    if(!side) {" +
                 "      var rect = t.getBoundingClientRect();" +
-                "      var isMe = (rect.left > W * 0.25 && rect.right > W - 40);" +
-                "      b.setAttribute('data-hm-side', isMe ? 'me' : 'ai');" +
+                "      side = (rect.left > W * 0.25 && rect.right > W - 40) ? 'me' : 'ai';" +
                 "    }" +
+                "    b.setAttribute('data-hm-side', side);" +
                 "  }" +
                 "}" +
                 "tagBubbles();" +
-                "new MutationObserver(tagBubbles).observe(document.documentElement, {childList: true, subtree: true});" +
+                "if(!HM.observer) { HM.observer = new MutationObserver(tagBubbles); HM.observer.observe(document.documentElement, {childList: true, subtree: true}); }" +
+                "})();";
+        webView.evaluateJavascript(script, null);
+        fetchRoleMap();
+    }
+
+    /**
+     * 拉取最近消息建立"文本→角色"映射:气泡左右不再靠几何猜拳
+     */
+    private void fetchRoleMap() {
+        String script = "(async function() {" +
+                "try {" +
+                "  var HM = window.__harkFree = window.__harkFree || {};" +
+                "  function norm(s){return (s||'').replace(/\\s+/g,' ').trim().slice(0,120);}" +
+                "  var m = location.pathname.match(/^\\/project\\/([^\\/]+)/);" +
+                "  var cid = m ? m[1] : null;" +
+                "  if(!cid) { var r0 = await fetch('/api/conversations/main?timezone=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone), {credentials:'include'}); if(r0.ok) cid = (await r0.json()).conversationId; }" +
+                "  if(!cid) return;" +
+                "  var r = await fetch('/api/messages/history?conversationId=' + encodeURIComponent(cid) + '&v=2', {credentials:'include'});" +
+                "  if(!r.ok) return;" +
+                "  var d = await r.json();" +
+                "  var list = Array.isArray(d.messages) ? d.messages : Object.values(d.messages || {});" +
+                "  var map = {};" +
+                "  list.forEach(function(x){ if(x && x.content) map[norm(x.content)] = (x.role === 'user' ? 'me' : 'ai'); });" +
+                "  HM.roleMap = map;" +
+                "} catch(e) {}" +
                 "})();";
         webView.evaluateJavascript(script, null);
     }
