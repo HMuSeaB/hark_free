@@ -120,6 +120,8 @@ public class MainActivity extends AppCompatActivity {
             httpServer.stop();
             btnToggleServer.setText("启动互传");
             cardServerStatus.setVisibility(View.GONE);
+            stopService(new Intent(this, KeepAliveService.class));
+            tunnelManager.stopTunnel();
             Toast.makeText(this, "局域网互传服务已关闭", Toast.LENGTH_SHORT).show();
         } else {
             try {
@@ -130,6 +132,8 @@ public class MainActivity extends AppCompatActivity {
                 cardServerStatus.setVisibility(View.VISIBLE);
             btnToggleServer.setText("关闭互传");
             Toast.makeText(this, "服务已启动: " + url, Toast.LENGTH_LONG).show();
+            // 前台保活:防止系统回收进程断线
+            startForegroundService(new Intent(this, KeepAliveService.class));
             // Cloudflare 隧道:把互传/控制台发布到公网,Agent 可从任何网络连入(令牌保护仍生效)
             tunnelManager.startTunnel(8080, new TunnelManager.TunnelCallback() {
                 @Override
