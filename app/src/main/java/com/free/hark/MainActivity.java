@@ -44,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         tokenTracker = new TokenTracker(this);
-        httpServer = new LocalHttpServer(8080);
+        httpServer = new LocalHttpServer(this, 8080);
 
         MaterialCardView cardSlot0 = findViewById(R.id.card_slot0);
         MaterialCardView cardSlot1 = findViewById(R.id.card_slot1);
@@ -122,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 httpServer.start();
                 String ip = getLocalIpAddress();
-                String url = "http://" + ip + ":8080";
+                String url = "http://" + ip + ":8080/?t=" + httpServer.getAccessToken();
                 tvServerUrl.setText("电脑浏览器打开: " + url);
                 cardServerStatus.setVisibility(View.VISIBLE);
                 btnToggleServer.setText("关闭互传");

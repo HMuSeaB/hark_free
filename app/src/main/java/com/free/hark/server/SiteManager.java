@@ -1,6 +1,6 @@
 package com.free.hark.server;
 
-import android.os.Environment;
+import android.content.Context;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -37,8 +37,11 @@ public class SiteManager {
         MIME_TYPES.put("md", "text/markdown; charset=utf-8");
     }
 
-    public SiteManager() {
-        this.sitesRoot = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "HarkFree/sites");
+    public SiteManager(Context context) {
+        // 与 LocalHttpServer 使用同一应用专属目录,免权限
+        File base = context.getExternalFilesDir(null);
+        if (base == null) base = context.getFilesDir();
+        this.sitesRoot = new File(base, "HarkFree/sites");
         if (!sitesRoot.exists()) {
             sitesRoot.mkdirs();
         }

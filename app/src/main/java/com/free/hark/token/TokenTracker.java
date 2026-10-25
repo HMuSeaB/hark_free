@@ -1,18 +1,22 @@
 package com.free.hark.token;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
 /**
  * 官方 Token 额度追踪与持久化管理器 (TokenTracker)
- * 实时监控各账号官方剩余配额与重置时间，杜绝虚假宣传。
+ * 跨进程方案:槽位进程写 JSON 文件(原子替换),主进程每次读取都直接走磁盘,
+ * 彻底解决 SharedPreferences 多进程内存缓存导致的"永远显示 0%"。
  */
 public class TokenTracker {
 
-    private static final String PREF_NAME = "hark_tokens";
-    private final SharedPreferences prefs;
+    private final File storeFile;
 
     public static class UsageInfo {
         public long dailyLimit = 0;
@@ -33,24 +37,50 @@ public class TokenTracker {
     }
 
     public TokenTracker(Context context) {
-        this.prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        this.storeFile = new File(context.getFilesDir(), "token_usage.json");
     }
 
-    public void saveSlotUsage(String slotId, long used, long limit, String resetsAt) {
-        prefs.edit()
-                .putLong(slotId + "_used", used)
-                .putLong(slotId + "_limit", limit)
-                .putString(slotId + "_reset", resetsAt)
-                .putLong(slotId + "_time", System.currentTimeMillis())
-                .apply();
+    public synchronized void saveSlotUsage(String slotId, long used, long limit, String resetsAt) {
+        try {
+            JSONObject root = readAll();
+            root.put(slotId + "_used", used);
+            root.put(slotId + "_limit", limit);
+            root.put(slotId + "_reset", resetsAt == null ? "" : resetsAt);
+            root.put(slotId + "_time", System.currentTimeMillis());
+            File tmp = new File(storeFile.getParentFile(), storeFile.getName() + ".tmp");
+            try (FileOutputStream fos = new FileOutputStream(tmp)) {
+                fos.write(root.toString().getBytes(StandardCharsets.UTF_8));
+                fos.flush();
+            }
+            if (!tmp.renameTo(storeFile)) {
+                storeFile.delete();
+                tmp.renameTo(storeFile);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public UsageInfo getSlotUsage(String slotId) {
         UsageInfo info = new UsageInfo();
-        info.dailyUsed = prefs.getLong(slotId + "_used", 0);
-        info.dailyLimit = prefs.getLong(slotId + "_limit", 0);
-        info.resetsAt = prefs.getString(slotId + "_reset", "");
-        info.updateTime = prefs.getLong(slotId + "_time", 0);
+        try {
+            JSONObject root = readAll();
+            info.dailyUsed = root.optLong(slotId + "_used", 0);
+            info.dailyLimit = root.optLong(slotId + "_limit", 0);
+            info.resetsAt = root.optString(slotId + "_reset", "");
+            info.updateTime = root.optLong(slotId + "_time", 0);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return info;
+    }
+
+    private JSONObject readAll() {
+        try {
+            if (storeFile.exists()) {
+                return new JSONObject(new String(Files.readAllBytes(storeFile.toPath()), StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {}
+        return new JSONObject();
     }
 }

@@ -19,8 +19,11 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 手机本地微型 HTTP 服务器 (LocalHttpServer)
@@ -33,15 +36,25 @@ public class LocalHttpServer {
     private final SiteManager siteManager;
     private ServerSocket serverSocket;
     private boolean isRunning = false;
-    private final ExecutorService threadPool = Executors.newCachedThreadPool();
+    private final ExecutorService threadPool = new ThreadPoolExecutor(
+            4, 16, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+    // 访问令牌:每次服务启动随机生成,所有 /api 与 /f 请求必须携带 ?t=<token>
+    private final String accessToken = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
 
-    public LocalHttpServer(int port) {
+    public String getAccessToken() {
+        return accessToken;
+    }
+
+    public LocalHttpServer(Context context, int port) {
         this.port = port;
-        this.storageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "HarkFree");
+        // 应用专属外部目录:API 26~34 全版本免权限可写,规避分区存储限制
+        File base = context.getExternalFilesDir(null);
+        if (base == null) base = context.getFilesDir();
+        this.storageDir = new File(base, "HarkFree");
         if (!storageDir.exists()) {
             storageDir.mkdirs();
         }
-        this.siteManager = new SiteManager();
+        this.siteManager = new SiteManager(context);
     }
 
     public synchronized void start() throws Exception {
@@ -91,6 +104,12 @@ public class LocalHttpServer {
             String method = parts[0];
             String uri = parts[1];
 
+            // 访问令牌校验:除静态站点外的所有端点必须携带 ?t=<token>
+            if (!uri.startsWith("/sites/") && !hasValidToken(uri)) {
+                sendResponse(out, "403 Forbidden", "text/plain", "403 Forbidden (missing/invalid token)".getBytes());
+                return;
+            }
+
             // 头部读取
             int contentLength = 0;
             while ((line = reader.readLine()) != null && !line.isEmpty()) {
@@ -107,8 +126,10 @@ public class LocalHttpServer {
             } else if (uri.equals("/api/ls")) {
                 serveApiLs(out);
             } else if (uri.startsWith("/api/upload")) {
+                if (!method.equalsIgnoreCase("POST")) { sendResponse(out, "405 Method Not Allowed", "text/plain", "POST only".getBytes()); return; }
                 handleUpload(uri, in, contentLength, out);
             } else if (uri.startsWith("/api/rm")) {
+                if (!method.equalsIgnoreCase("POST")) { sendResponse(out, "405 Method Not Allowed", "text/plain", "POST only".getBytes()); return; }
                 handleDelete(uri, out);
             } else if (uri.equals("/api/sh") && method.equalsIgnoreCase("POST")) {
                 handleShellExec(reader, contentLength, out);
@@ -151,18 +172,19 @@ public class LocalHttpServer {
                 "<pre id='out'>（命令输出会显示在这里）</pre></div>" +
                 "</div>" +
                 "<script>" +
-                "async function loadLs(){let res=await (await fetch('/api/ls')).json();let h='';" +
+                "const T=new URLSearchParams(location.search).get('t')||'';const q=u=>u+(u.includes('?')?'&':'?')+'t='+T;" +
+                "async function loadLs(){let res=await (await fetch(q('/api/ls'))).json();let h='';" +
                 "res.forEach(f=>{h+=`<div class='item'><a href='/f/${encodeURIComponent(f.name)}'>${f.name}</a><span>${(f.size/1024).toFixed(1)} KB</span><a href='#' onclick='rm(\"${encodeURIComponent(f.name)}\")' style='color:#E5484D;flex:none'>删除</a></div>`;});" +
                 "document.getElementById('ls').innerHTML=h||'<div style=\"color:#888\">暂无文件</div>';}" +
-                "async function rm(n){if(!confirm('确定删除?'))return;await fetch('/api/rm?name='+n,{method:'POST'});loadLs();}" +
+                "async function rm(n){if(!confirm('确定删除?'))return;await fetch(q('/api/rm?name='+n),{method:'POST'});loadLs();}" +
                 "const fi=document.getElementById('fi');const drop=document.getElementById('drop');" +
                 "drop.onclick=()=>fi.click();fi.onchange=()=>up(fi.files);" +
                 "drop.ondragover=e=>e.preventDefault();drop.ondrop=e=>{e.preventDefault();up(e.dataTransfer.files);};" +
                 "async function up(fs){for(let f of fs){document.getElementById('pg').textContent='正在发送: '+f.name;" +
-                "let x=new XMLHttpRequest();x.open('POST','/api/upload?name='+encodeURIComponent(f.name));" +
+                "let x=new XMLHttpRequest();x.open('POST',q('/api/upload?name='+encodeURIComponent(f.name)));" +
                 "await new Promise(r=>{x.onload=x.onerror=r;x.send(f);});}document.getElementById('pg').textContent='传输完成！';loadLs();}" +
                 "async function runCmd(){document.getElementById('out').textContent='执行中...';" +
-                "let r=await fetch('/api/sh',{method:'POST',body:document.getElementById('cmd').value});" +
+                "let r=await fetch(q('/api/sh'),{method:'POST',body:document.getElementById('cmd').value});" +
                 "document.getElementById('out').textContent=await r.text()||'（无输出）';}" +
                 "loadLs();" +
                 "</script></body></html>";
@@ -196,14 +218,38 @@ public class LocalHttpServer {
         sendResponse(out, "200 OK", "application/json", arr.toString().getBytes(StandardCharsets.UTF_8));
     }
 
+    private boolean hasValidToken(String uri) {
+        int t = uri.indexOf("t=");
+        if (t < 0) return false;
+        String token = uri.substring(t + 2);
+        int amp = token.indexOf('&');
+        if (amp >= 0) token = token.substring(0, amp);
+        return accessToken.equals(token);
+    }
+
+    /** 防路径穿越:目标必须位于存储目录内部 */
+    private boolean insideStorage(File f) {
+        try {
+            return f.getCanonicalPath().startsWith(storageDir.getCanonicalPath() + File.separator)
+                    || f.getCanonicalPath().equals(storageDir.getCanonicalPath());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private void handleUpload(String uri, InputStream in, int len, OutputStream out) throws Exception {
         String name = "upload_" + System.currentTimeMillis();
         int idx = uri.indexOf("name=");
         if (idx > 0) {
             name = URLDecoder.decode(uri.substring(idx + 5), "UTF-8");
         }
+        name = new File(name).getName();
 
         File target = new File(storageDir, name);
+        if (!insideStorage(target)) {
+            sendResponse(out, "403 Forbidden", "text/plain", "Invalid path".getBytes());
+            return;
+        }
         try (FileOutputStream fos = new FileOutputStream(target)) {
             byte[] buf = new byte[8192];
             int read, remain = len;
@@ -219,8 +265,8 @@ public class LocalHttpServer {
         int idx = uri.indexOf("name=");
         if (idx > 0) {
             String name = URLDecoder.decode(uri.substring(idx + 5), "UTF-8");
-            File file = new File(storageDir, name);
-            if (file.exists()) {
+            File file = new File(storageDir, new File(name).getName());
+            if (insideStorage(file) && file.exists()) {
                 file.delete();
             }
         }
@@ -229,8 +275,11 @@ public class LocalHttpServer {
 
     private void handleShellExec(BufferedReader reader, int len, OutputStream out) throws Exception {
         char[] buf = new char[len];
-        reader.read(buf, 0, len);
-        String cmd = new String(buf).trim();
+        int read, done = 0;
+        while (done < len && (read = reader.read(buf, done, len - done)) != -1) {
+            done += read;
+        }
+        String cmd = new String(buf, 0, done).trim();
 
         StringBuilder sb = new StringBuilder();
         try {
@@ -249,8 +298,8 @@ public class LocalHttpServer {
 
     private void serveDownloadFile(String rawName, OutputStream out) throws Exception {
         String name = URLDecoder.decode(rawName, "UTF-8");
-        File file = new File(storageDir, name);
-        if (!file.exists() || !file.isFile()) {
+        File file = new File(storageDir, new File(name).getName());
+        if (!insideStorage(file) || !file.exists() || !file.isFile()) {
             sendResponse(out, "404 Not Found", "text/plain", "File not found".getBytes());
             return;
         }

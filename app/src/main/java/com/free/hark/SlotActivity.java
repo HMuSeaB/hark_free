@@ -40,6 +40,13 @@ public abstract class SlotActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // API 28+ 多进程 WebView 必须给每个进程独立数据目录后缀,否则抛异常/串号
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            String pn = android.app.Application.getProcessName();
+            if (pn != null && pn.contains(":slot")) {
+                android.webkit.WebView.setDataDirectorySuffix(pn);
+            }
+        }
         setContentView(R.layout.activity_slot);
 
         ImageButton btnBack = findViewById(R.id.btn_back);

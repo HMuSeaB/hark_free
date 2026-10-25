@@ -81,11 +81,10 @@ public class HarkNativeBridge {
                     }
                 }
             } else {
-                File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "HarkFree");
-                if (!dir.exists()) {
-                    dir.mkdirs();
-                }
-                File file = new File(dir, filename);
+                // API 26~28:使用应用专属外部目录,免 WRITE_EXTERNAL_STORAGE 运行时权限
+                File dir = activity.getExternalFilesDir(null);
+                if (dir == null) dir = activity.getFilesDir();
+                File file = new File(dir, new File(filename).getName());
                 try (FileOutputStream fos = new FileOutputStream(file)) {
                     fos.write(content.getBytes(StandardCharsets.UTF_8));
                     fos.flush();
