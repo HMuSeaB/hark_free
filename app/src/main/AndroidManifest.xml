@@ -76,6 +76,12 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- 自有邮箱收发(用户自己的凭据,仅存本机) -->
+        <activity
+            android:name=".mail.MailActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- 互传/隧道运行期间的前台保活服务 -->
         <service
             android:name=".KeepAliveService"

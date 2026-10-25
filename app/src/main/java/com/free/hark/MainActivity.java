@@ -65,9 +65,12 @@ public class MainActivity extends AppCompatActivity {
         pbUsage3 = findViewById(R.id.pb_usage_3);
 
         MaterialButton btnOpenTerm = findViewById(R.id.btn_open_term);
+        MaterialButton btnOpenMail = findViewById(R.id.btn_open_mail);
         btnToggleServer = findViewById(R.id.btn_toggle_server);
         cardServerStatus = findViewById(R.id.card_server_status);
         tvServerUrl = findViewById(R.id.tv_server_url);
+
+        btnOpenMail.setOnClickListener(v -> startActivity(new Intent(this, com.free.hark.mail.MailActivity.class)));
 
         cardSlot0.setOnClickListener(v -> launchSlot(SlotActivity.Slot0.class, "账号槽位 1", "slot0"));
         cardSlot1.setOnClickListener(v -> launchSlot(SlotActivity.Slot1.class, "账号槽位 2", "slot1"));
