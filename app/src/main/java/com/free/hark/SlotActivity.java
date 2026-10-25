@@ -120,6 +120,7 @@ public abstract class SlotActivity extends AppCompatActivity {
                 // 页面加载完成时注入气泡归属检测脚本与Token同步脚本
                 injectBubbleObserver();
                 injectTokenSync(currentSlotId);
+                injectCleanLogin();
                 if (isWeChatStyleActive) {
                     injectWeChatCss();
                 }
@@ -128,6 +129,23 @@ public abstract class SlotActivity extends AppCompatActivity {
 
         // 加载 Hark 官方网址
         webView.loadUrl("https://hark.com/");
+    }
+
+    /** 隐藏 hark.com 官方 App 推广横幅,让登录页更干净 */
+    private void injectCleanLogin() {
+        String script = "(function() {" +
+                "try {" +
+                "  document.querySelectorAll('a[href*=\"play.google.com\"]').forEach(function(a) {" +
+                "    var el = a;" +
+                "    for (var i = 0; i < 6 && el; i++) {" +
+                "      var s = getComputedStyle(el);" +
+                "      if (s.position === 'fixed' || s.position === 'sticky') { el.style.display = 'none'; break; }" +
+                "      el = el.parentElement;" +
+                "    }" +
+                "  });" +
+                "} catch(e) {}" +
+                "})();";
+        webView.evaluateJavascript(script, null);
     }
 
     private void injectTokenSync(String slotId) {
