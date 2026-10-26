@@ -42,4 +42,5 @@ dependencies {
     implementation("org.tukaani:xz:1.9")
     implementation("com.sun.mail:android-mail:1.6.3")
     implementation("com.sun.mail:android-activation:1.6.3")
+    implementation("com.github.mwiede:jsch:0.2.17")
 }

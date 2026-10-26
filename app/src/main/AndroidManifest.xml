@@ -76,6 +76,12 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- SSH 服务器管理 -->
+        <activity
+            android:name=".ssh.SshActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- 自有邮箱收发(用户自己的凭据,仅存本机) -->
         <activity
             android:name=".mail.MailActivity"

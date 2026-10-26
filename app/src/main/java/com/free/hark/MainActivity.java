@@ -66,11 +66,13 @@ public class MainActivity extends AppCompatActivity {
 
         MaterialButton btnOpenTerm = findViewById(R.id.btn_open_term);
         MaterialButton btnOpenMail = findViewById(R.id.btn_open_mail);
+        MaterialButton btnOpenSsh = findViewById(R.id.btn_open_ssh);
         btnToggleServer = findViewById(R.id.btn_toggle_server);
         cardServerStatus = findViewById(R.id.card_server_status);
         tvServerUrl = findViewById(R.id.tv_server_url);
 
         btnOpenMail.setOnClickListener(v -> startActivity(new Intent(this, com.free.hark.mail.MailActivity.class)));
+        btnOpenSsh.setOnClickListener(v -> startActivity(new Intent(this, com.free.hark.ssh.SshActivity.class)));
 
         cardSlot0.setOnClickListener(v -> launchSlot(SlotActivity.Slot0.class, "账号槽位 1", "slot0"));
         cardSlot1.setOnClickListener(v -> launchSlot(SlotActivity.Slot1.class, "账号槽位 2", "slot1"));
@@ -225,6 +227,9 @@ public class MainActivity extends AppCompatActivity {
                 + "• POST /api/linux/run?id=ubuntu（请求体是命令，可加 &timeout=秒）：在手机 Linux 容器里以 root 运行命令（可用 apt 装软件）。安装新系统：POST /api/linux?id=..&install=1\n"
                 + "• GET /api/apps：列出手机上装的应用（名称、包名）；GET /api/open?name=微信 或 ?pkg=<包名> 或 ?url=<链接>：在手机上打开应用/链接\n"
                 + "• 站点托管：POST /api/site/put?name=<站点名>&path=index.html（请求体是文件内容）上传；GET /api/sites 列出；访问 /sites/<站点名>/；POST /api/site/rm?name= 删除\n"
+                + "• GET /api/servers：列出我在 App 里保存的 SSH 服务器（id、名称、主机）\n"
+                + "• POST /api/ssh?s=<id>（请求体是命令）：经手机在那台服务器上运行命令\n"
+                + "• POST /api/sput?s=<id>&path=<远端路径>（请求体是文件）/ GET /api/sget?s=<id>&path=<远端路径>：经手机给服务器传、取文件\n"
                 + "• GET /api/usage：各槽位 Hark 账号的 Token 额度\n\n"
                 + "例：curl -H 'X-Token: " + token + "' " + fullUrl.replace("/?t=" + token, "") + "/api/info\n\n"
                 + "连不上就说明我手机上的桥接没开，提醒我打开 HarkFree →「启动互传」。令牌只在这里用，别展示给别人。\n"

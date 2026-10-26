@@ -44,6 +44,7 @@ public class LocalHttpServer {
     private final String accessToken = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
     private final com.free.hark.linux.LinuxManager linuxManager;
     private final com.free.hark.token.TokenTracker tokenTracker;
+    private final com.free.hark.ssh.SshManager sshManager;
     // 正在安装的发行版(防重复触发)
     private final java.util.Set<String> installing = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
@@ -63,6 +64,7 @@ public class LocalHttpServer {
         this.siteManager = new SiteManager(context);
         this.linuxManager = new com.free.hark.linux.LinuxManager(context);
         this.tokenTracker = new com.free.hark.token.TokenTracker(context);
+        this.sshManager = new com.free.hark.ssh.SshManager(context);
         this.appContext = context;
     }
     private final Context appContext;
@@ -166,6 +168,16 @@ public class LocalHttpServer {
                 String name = queryParam(uri, "name");
                 sendResponse(out, "200 OK", "application/json",
                         ("{\"ok\":true,\"url\":\"/sites/" + (name == null ? "" : name) + "/\"}").getBytes());
+            } else if (uri.equals("/api/servers")) {
+                serveApiServers(out);
+            } else if (uri.startsWith("/api/ssh")) {
+                if (!method.equalsIgnoreCase("POST")) { sendResponse(out, "405 Method Not Allowed", "text/plain", "POST only".getBytes()); return; }
+                handleSshExec(uri, in, contentLength, out);
+            } else if (uri.startsWith("/api/sput")) {
+                if (!method.equalsIgnoreCase("POST")) { sendResponse(out, "405 Method Not Allowed", "text/plain", "POST only".getBytes()); return; }
+                handleSPut(uri, in, contentLength, out);
+            } else if (uri.startsWith("/api/sget")) {
+                handleSGet(uri, out);
             } else if (uri.equals("/api/sh") && method.equalsIgnoreCase("POST")) {
                 handleShellExec(uri, reader, contentLength, out);
             } else if (uri.startsWith("/f/")) {
@@ -629,6 +641,83 @@ public class LocalHttpServer {
         File dir = siteDir(uri);
         if (dir != null && dir.exists()) deleteRecursive(dir);
         sendResponse(out, "200 OK", "text/plain", "OK".getBytes());
+    }
+
+    private void serveApiServers(OutputStream out) throws Exception {
+        JSONArray outArr = new JSONArray();
+        JSONArray arr = sshManager.list();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject srv = arr.optJSONObject(i);
+            if (srv == null) continue;
+            JSONObject o = new JSONObject();
+            o.put("id", srv.optString("id"));
+            o.put("name", srv.optString("name"));
+            o.put("host", srv.optString("host"));
+            o.put("port", srv.optInt("port", 22));
+            outArr.put(o);
+        }
+        JSONObject root = new JSONObject();
+        root.put("servers", outArr);
+        sendResponse(out, "200 OK", "application/json", root.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private byte[] readBody(InputStream in, int len) throws Exception {
+        byte[] body = new byte[len];
+        int done = 0;
+        while (done < len) {
+            int r = in.read(body, done, len - done);
+            if (r == -1) break;
+            done += r;
+        }
+        return body;
+    }
+
+    private void handleSshExec(String uri, InputStream in, int len, OutputStream out) throws Exception {
+        String id = queryParam(uri, "s");
+        int timeout = parseTimeout(uri, 60);
+        String cmd = new String(readBody(in, len), StandardCharsets.UTF_8).trim();
+        if (cmd.isEmpty()) {
+            sendResponse(out, "400 Bad Request", "text/plain", "empty command".getBytes());
+            return;
+        }
+        try {
+            String result = sshManager.exec(id, cmd, timeout);
+            sendResponse(out, "200 OK", "text/plain; charset=utf-8", result.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            sendResponse(out, "500 Internal Server Error", "text/plain; charset=utf-8",
+                    ("SSH 执行失败: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private void handleSPut(String uri, InputStream in, int len, OutputStream out) throws Exception {
+        String id = queryParam(uri, "s");
+        String path = queryParam(uri, "path");
+        if (path == null || path.isEmpty()) {
+            sendResponse(out, "400 Bad Request", "text/plain", "need s & path".getBytes());
+            return;
+        }
+        try {
+            sshManager.sput(id, path, readBody(in, len));
+            sendResponse(out, "200 OK", "text/plain", "OK".getBytes());
+        } catch (Exception e) {
+            sendResponse(out, "500 Internal Server Error", "text/plain; charset=utf-8",
+                    ("SFTP 上传失败: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private void handleSGet(String uri, OutputStream out) throws Exception {
+        String id = queryParam(uri, "s");
+        String path = queryParam(uri, "path");
+        if (path == null || path.isEmpty()) {
+            sendResponse(out, "400 Bad Request", "text/plain", "need s & path".getBytes());
+            return;
+        }
+        try {
+            sendResponse(out, "200 OK", "application/octet-stream", sshManager.sget(id, path));
+        } catch (Exception e) {
+            sendResponse(out, "500 Internal Server Error", "text/plain; charset=utf-8",
+                    ("SFTP 下载失败: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     private void sendResponse(OutputStream out, String status, String mime, byte[] data) throws Exception {

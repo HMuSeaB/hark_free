@@ -63,6 +63,18 @@
             android:textSize="12sp"
             app:strokeColor="#3DDC84" />
 
+        <!-- SSH 入口 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_open_ssh"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:text="SSH"
+            android:textColor="#3DDC84"
+            android:textSize="12sp"
+            app:strokeColor="#3DDC84" />
+
         <!-- 局域网互传开关 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_toggle_server"
