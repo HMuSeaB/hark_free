@@ -47,7 +47,7 @@ public class SshManager {
         return null;
     }
 
-    public synchronized String add(String name, String host, int port, String user, String pass) {
+    public synchronized String add(String name, String host, int port, String user, String pass, String key) {
         try {
             JSONObject root = readRoot();
             JSONArray arr = root.optJSONArray("servers");
@@ -60,6 +60,7 @@ public class SshManager {
             o.put("port", port);
             o.put("user", user);
             o.put("pass", pass);
+            o.put("key", key == null ? "" : key);
             arr.put(o);
             root.put("servers", arr);
             write(root);
@@ -118,6 +119,11 @@ public class SshManager {
 
     private Session connect(JSONObject s, int timeoutSeconds) throws Exception {
         JSch jsch = new JSch();
+        String key = s.optString("key", "");
+        if (!key.isEmpty()) {
+            // 密钥认证(可选填 OpenSSH 私钥;留空则用密码)
+            jsch.addIdentity("harkfree-key", key.getBytes(StandardCharsets.UTF_8), null, null);
+        }
         Session session = jsch.getSession(s.optString("user"), s.optString("host"), s.optInt("port", 22));
         session.setPassword(s.optString("pass"));
         session.setConfig("StrictHostKeyChecking", "no");

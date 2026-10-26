@@ -52,6 +52,13 @@ public class LocalHttpServer {
         return accessToken;
     }
 
+    // PIN:互传的另一把钥匙——浏览器输入 PIN 即可用,免去复制长令牌
+    private final String pin = String.valueOf((int) (Math.random() * 9000) + 1000);
+
+    public String getPin() {
+        return pin;
+    }
+
     public LocalHttpServer(Context context, int port) {
         this.port = port;
         // 应用专属外部目录:API 26~34 全版本免权限可写,规避分区存储限制
@@ -116,9 +123,9 @@ public class LocalHttpServer {
             String method = parts[0];
             String uri = parts[1];
 
-            // 访问令牌校验:除静态站点外的所有端点必须携带 ?t=<token>
+            // 访问校验:除静态站点外的所有端点必须携带令牌或 PIN
             if (!uri.startsWith("/sites/") && !hasValidToken(uri)) {
-                sendResponse(out, "403 Forbidden", "text/plain", "403 Forbidden (missing/invalid token)".getBytes());
+                servePinLogin(out);
                 return;
             }
 
@@ -271,7 +278,22 @@ public class LocalHttpServer {
         String token = uri.substring(t + 2);
         int amp = token.indexOf('&');
         if (amp >= 0) token = token.substring(0, amp);
-        return accessToken.equals(token);
+        return accessToken.equals(token) || pin.equals(token);
+    }
+
+    /** PIN 登录页:输入手机上显示的 4 位 PIN 即可换取访问权 */
+    private void servePinLogin(OutputStream out) throws Exception {
+        String html = "<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'>"
+                + "<title>HarkFree</title><body style='font-family:-apple-system,PingFang SC,sans-serif;"
+                + "background:#FFFFFF;display:flex;align-items:center;justify-content:center;height:95vh'>"
+                + "<form onsubmit=\"location.href='/?t='+encodeURIComponent(p.value);return false\" "
+                + "style='background:#fff;padding:28px;border-radius:12px;text-align:center'>"
+                + "<div style='font-size:18px;margin-bottom:16px'>输入手机上显示的 PIN</div>"
+                + "<input id=p inputmode=numeric autofocus style='font-size:22px;width:160px;text-align:center;"
+                + "padding:8px;border:1px solid #ddd;border-radius:6px'>"
+                + "<div><button style='margin-top:16px;background:#07C160;color:#fff;border:0;border-radius:6px;"
+                + "padding:10px 40px;font-size:16px'>进入</button></div></form></body>";
+        sendResponse(out, "401 Unauthorized", "text/html; charset=utf-8", html.getBytes(StandardCharsets.UTF_8));
     }
 
     /** 防路径穿越:目标必须位于存储目录内部 */

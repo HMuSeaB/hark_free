@@ -189,6 +189,15 @@ adb install -r "D:\4rchive\Code\hark_free\app\build\outputs\apk\debug\app-debug.
 - **[新增] 前台服务保活 + 电池优化豁免引导**;
 - **[优化] 登录页自动隐藏官方推广横幅**。
 
+### v1.0.2 (2026-10-26)
+- **[新增] SSH 体系**:服务器管理页(密码或 OpenSSH 私钥)+ /api/servers、/api/ssh、/api/sput、/api/sget——Agent 可经手机 SSH 到局域网电脑/服务器执行命令和传取文件;
+- **[新增] 互传 PIN 登录页**:浏览器输入手机上显示的 4 位 PIN 即可使用,免复制长令牌;
+- **[新增] 槽位自定义启动 URL**(长按槽位卡片)与**导出全部会话**(长按导出MD);
+- **[新增] 账号档案**:长按槽位标题,Cookie 快照式无限账号秒切;
+- **[新增] 自有邮箱收发**(IMAP/SMTP,凭据仅存本机);
+- **[加固] /api/sh 与 /api/linux/run 超时终止;Agent 桥接提示词自动复制(含 SSH 能力说明);
+- **[修复] 微信绿运行时引擎**:API 角色映射 + 内联样式,不再依赖 hark.com 选择器。
+
 ### Roadmap
 - [ ] SSH 服务器管理页(多服务器+密钥)
 - [ ] Shizuku 免 root 提权(可选,解锁更多极客能力)

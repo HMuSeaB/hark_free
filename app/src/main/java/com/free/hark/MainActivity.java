@@ -174,6 +174,7 @@ public class MainActivity extends AppCompatActivity {
                 String ip = getLocalIpAddress();
                 String url = "http://" + ip + ":8080/?t=" + httpServer.getAccessToken();
                 tvServerUrl.setText("电脑浏览器打开: " + url);
+                tvServerUrl.append("\nPIN: " + httpServer.getPin());
                 cardServerStatus.setVisibility(View.VISIBLE);
             btnToggleServer.setText("关闭互传");
             Toast.makeText(this, "服务已启动: " + url, Toast.LENGTH_LONG).show();

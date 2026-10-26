@@ -2,8 +2,9 @@ package com.free.hark.ssh;
 
 import android.graphics.Typeface;
 import android.os.Bundle;
-import android.view.View;
 import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -101,7 +102,7 @@ public class SshActivity extends AppCompatActivity {
         container.addView(bar);
 
         container.addView(title("SSH 服务器"));
-        container.addView(muted("桥接开启后,Agent 可经手机在这些主机上执行命令、传取文件(/api/ssh、/api/sput、/api/sget)。凭据仅存本机。"));
+        container.addView(muted("桥接开启后,Agent 可经手机在这些主机上执行命令、传取文件(/api/ssh、/api/sput、/api/sget)。凭据仅存本机。支持密码或 OpenSSH 私钥。"));
 
         JSONArray servers = sshManager.list();
         if (servers.length() == 0) {
@@ -129,9 +130,9 @@ public class SshActivity extends AppCompatActivity {
                 new Thread(() -> {
                     try {
                         String out = sshManager.exec(id, "uname -a", 15).trim();
-                        ui(() -> Toast.makeText(this, out.isEmpty() ? "连接成功(无输出)" : out, Toast.LENGTH_LONG).show());
+                        runOnUiThread(() -> Toast.makeText(this, out.isEmpty() ? "连接成功(无输出)" : out, Toast.LENGTH_LONG).show());
                     } catch (Exception e) {
-                        ui(() -> Toast.makeText(this, "失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                        runOnUiThread(() -> Toast.makeText(this, "失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
                     }
                 }).start();
             }));
@@ -143,10 +144,6 @@ public class SshActivity extends AppCompatActivity {
             row.addView(actions);
             container.addView(row);
         }
-    }
-
-    private void ui(Runnable r) {
-        runOnUiThread(r);
     }
 
     private void showAdd() {
@@ -162,13 +159,22 @@ public class SshActivity extends AppCompatActivity {
         EditText etHost = field("主机 / IP", "", false);
         EditText etPort = field("端口(默认 22)", "22", false);
         EditText etUser = field("用户名", "", false);
-        EditText etPass = field("密码", "", true);
+        EditText etPass = field("密码(选密钥认证时留空)", "", true);
+        EditText etKey = new EditText(this);
+        etKey.setHint("私钥(可选,OpenSSH 格式,粘贴到此)");
+        etKey.setTextColor(0xFFF4F4F5);
+        etKey.setHintTextColor(0xFF6A6A72);
+        etKey.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2A2A30));
+        etKey.setTextSize(13);
+        etKey.setMinLines(3);
+        etKey.setGravity(Gravity.TOP);
 
         container.addView(etName);
         container.addView(etHost);
         container.addView(etPort);
         container.addView(etUser);
         container.addView(etPass);
+        container.addView(etKey);
         TextView status = muted("");
         container.addView(status);
 
@@ -179,12 +185,13 @@ public class SshActivity extends AppCompatActivity {
                 int port = Integer.parseInt(etPort.getText().toString().trim());
                 String user = etUser.getText().toString().trim();
                 String pass = etPass.getText().toString();
+                String key = etKey.getText().toString();
                 if (name.isEmpty() || host.isEmpty() || user.isEmpty()) {
                     toast("请填写完整");
                     return;
                 }
                 status.setText("保存中...");
-                String id = sshManager.add(name, host, port, user, pass);
+                String id = sshManager.add(name, host, port, user, pass, key);
                 if (id == null) {
                     status.setText("保存失败");
                     return;
@@ -193,12 +200,12 @@ public class SshActivity extends AppCompatActivity {
                 new Thread(() -> {
                     try {
                         String out = sshManager.exec(id, "uname -a", 15).trim();
-                        ui(() -> {
+                        runOnUiThread(() -> {
                             Toast.makeText(this, out.isEmpty() ? "已保存,连接成功(无输出)" : "已保存,连接成功: " + out, Toast.LENGTH_LONG).show();
                             showList();
                         });
                     } catch (Exception e) {
-                        ui(() -> {
+                        runOnUiThread(() -> {
                             status.setText("已保存,但连接失败: " + e.getMessage());
                             showList();
                         });
