@@ -189,7 +189,12 @@ public class MainActivity extends AppCompatActivity {
             tunnelManager.startTunnel(8080, new TunnelManager.TunnelCallback() {
                 @Override
                 public void onUrlResolved(String publicUrl) {
-                    runOnUiThread(() -> tvServerUrl.append("\n公网桥接: " + publicUrl + "/?t=" + httpServer.getAccessToken()));
+                    runOnUiThread(() -> {
+                        String full = publicUrl + "/?t=" + httpServer.getAccessToken();
+                        tvServerUrl.append("\n公网桥接: " + full);
+                        copyAgentPrompt(full);
+                        Toast.makeText(MainActivity.this, "Agent 提示词已复制到剪贴板", Toast.LENGTH_LONG).show();
+                    });
                 }
                 @Override
                 public void onStopped() {}
@@ -201,6 +206,32 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Toast.makeText(this, "启动服务失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
+        }
+    }
+
+    /** 生成并复制"Agent 桥接提示词"——发给任何 AI Agent,它就能远程操作这台手机(对标 HarkMulti teach) */
+    private void copyAgentPrompt(String fullUrl) {
+        String token = httpServer.getAccessToken();
+        String prompt = "请把下面这段完整记到你的长期记忆里，以后我让你操作我的安卓手机时就用它。\n\n"
+                + "【我的手机 HarkFree 桥接】我手机上的 HarkFree App 开着「公网桥接」时，可以通过下面的地址直接操作我的安卓手机（"
+                + android.os.Build.MODEL + "）。\n"
+                + "地址：" + fullUrl + "\n"
+                + "访问令牌：" + token + "（每个请求带请求头 X-Token: 令牌，或在网址后加 ?t=令牌）\n\n"
+                + "接口（用 shell 里的 curl 调用即可）：\n"
+                + "• GET /api/info：手机型号、存储路径、桥接状态\n"
+                + "• GET /api/ls：列出互传文件夹；GET /f/<文件名> 下载；POST /api/upload?name= 上传；POST /api/rm?name= 删除\n"
+                + "• POST /api/sh（请求体是命令，可加 ?timeout=秒）：在手机上运行 shell 命令（App 权限，非 root）\n"
+                + "• GET /api/linux：查看手机上的 Linux 发行版（alpine/debian/ubuntu）是否已装\n"
+                + "• POST /api/linux/run?id=ubuntu（请求体是命令，可加 &timeout=秒）：在手机 Linux 容器里以 root 运行命令（可用 apt 装软件）。安装新系统：POST /api/linux?id=..&install=1\n"
+                + "• GET /api/apps：列出手机上装的应用（名称、包名）；GET /api/open?name=微信 或 ?pkg=<包名> 或 ?url=<链接>：在手机上打开应用/链接\n"
+                + "• 站点托管：POST /api/site/put?name=<站点名>&path=index.html（请求体是文件内容）上传；GET /api/sites 列出；访问 /sites/<站点名>/；POST /api/site/rm?name= 删除\n"
+                + "• GET /api/usage：各槽位 Hark 账号的 Token 额度\n\n"
+                + "例：curl -H 'X-Token: " + token + "' " + fullUrl.replace("/?t=" + token, "") + "/api/info\n\n"
+                + "连不上就说明我手机上的桥接没开，提醒我打开 HarkFree →「启动互传」。令牌只在这里用，别展示给别人。\n"
+                + "现在请先调用一次 /api/info 试一下，告诉我结果。";
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (cm != null) {
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("harkfree", prompt));
         }
     }
 

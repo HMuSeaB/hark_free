@@ -85,7 +85,10 @@ public class LinuxManager {
     }
 
     public boolean isInstalled() {
-        Distro d = getActiveDistro();
+        return isInstalled(getActiveDistro());
+    }
+
+    public boolean isInstalled(Distro d) {
         if (d == null) return false;
         File binSh = new File(distroDir(d), d.shell);
         return binSh.exists() && binSh.canExecute();
@@ -381,9 +384,16 @@ public class LinuxManager {
      * 构建 PRoot ProcessBuilder,执行指定命令(使用当前活跃发行版)
      */
     public ProcessBuilder buildPRootProcess(String... commands) {
-        Distro d = getActiveDistro();
-        File rootfsDir = distroDir(d == null ? Distro.ALPINE : d);
-        String shell = (d == null ? Distro.ALPINE : d).shell;
+        return buildPRootProcessFor(getActiveDistro(), commands);
+    }
+
+    /**
+     * 构建指定发行版的 PRoot ProcessBuilder(桥接 /api/linux/run 用)
+     */
+    public ProcessBuilder buildPRootProcessFor(Distro d, String... commands) {
+        Distro distro = d == null ? Distro.ALPINE : d;
+        File rootfsDir = distroDir(distro);
+        String shell = distro.shell;
 
         File prootBin = new File(nativeLibDir, "libproot.so");
         File prootLoader = new File(nativeLibDir, "libproot-loader.so");

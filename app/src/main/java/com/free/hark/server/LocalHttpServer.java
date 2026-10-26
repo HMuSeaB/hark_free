@@ -1,6 +1,8 @@
 package com.free.hark.server;
 
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 
@@ -40,6 +42,10 @@ public class LocalHttpServer {
             4, 16, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
     // 访问令牌:每次服务启动随机生成,所有 /api 与 /f 请求必须携带 ?t=<token>
     private final String accessToken = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+    private final com.free.hark.linux.LinuxManager linuxManager;
+    private final com.free.hark.token.TokenTracker tokenTracker;
+    // 正在安装的发行版(防重复触发)
+    private final java.util.Set<String> installing = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
     public String getAccessToken() {
         return accessToken;
@@ -55,7 +61,11 @@ public class LocalHttpServer {
             storageDir.mkdirs();
         }
         this.siteManager = new SiteManager(context);
+        this.linuxManager = new com.free.hark.linux.LinuxManager(context);
+        this.tokenTracker = new com.free.hark.token.TokenTracker(context);
+        this.appContext = context;
     }
+    private final Context appContext;
 
     public synchronized void start() throws Exception {
         if (isRunning) return;
@@ -131,8 +141,33 @@ public class LocalHttpServer {
             } else if (uri.startsWith("/api/rm")) {
                 if (!method.equalsIgnoreCase("POST")) { sendResponse(out, "405 Method Not Allowed", "text/plain", "POST only".getBytes()); return; }
                 handleDelete(uri, out);
+            } else if (uri.startsWith("/api/linux/run")) {
+                if (!method.equalsIgnoreCase("POST")) { sendResponse(out, "405 Method Not Allowed", "text/plain", "POST only".getBytes()); return; }
+                handleLinuxRun(uri, reader, contentLength, out);
+            } else if (uri.startsWith("/api/linux")) {
+                handleLinux(uri, out);
+            } else if (uri.equals("/api/apps")) {
+                serveApiApps(out);
+            } else if (uri.startsWith("/api/open")) {
+                handleOpen(uri, out);
+            } else if (uri.equals("/api/usage")) {
+                serveApiUsage(out);
+            } else if (uri.startsWith("/api/site/put")) {
+                if (!method.equalsIgnoreCase("POST")) { sendResponse(out, "405 Method Not Allowed", "text/plain", "POST only".getBytes()); return; }
+                sitePut(uri, in, contentLength, out);
+            } else if (uri.equals("/api/sites")) {
+                siteList(out);
+            } else if (uri.startsWith("/api/site/files")) {
+                siteFiles(uri, out);
+            } else if (uri.startsWith("/api/site/rm")) {
+                if (!method.equalsIgnoreCase("POST")) { sendResponse(out, "405 Method Not Allowed", "text/plain", "POST only".getBytes()); return; }
+                siteRm(uri, out);
+            } else if (uri.startsWith("/api/site/start")) {
+                String name = queryParam(uri, "name");
+                sendResponse(out, "200 OK", "application/json",
+                        ("{\"ok\":true,\"url\":\"/sites/" + (name == null ? "" : name) + "/\"}").getBytes());
             } else if (uri.equals("/api/sh") && method.equalsIgnoreCase("POST")) {
-                handleShellExec(reader, contentLength, out);
+                handleShellExec(uri, reader, contentLength, out);
             } else if (uri.startsWith("/f/")) {
                 serveDownloadFile(uri.substring(3), out);
             } else if (uri.startsWith("/sites/")) {
@@ -273,7 +308,8 @@ public class LocalHttpServer {
         sendResponse(out, "200 OK", "text/plain", "OK".getBytes(StandardCharsets.UTF_8));
     }
 
-    private void handleShellExec(BufferedReader reader, int len, OutputStream out) throws Exception {
+    private void handleShellExec(String uri, BufferedReader reader, int len, OutputStream out) throws Exception {
+        int timeout = parseTimeout(uri, 60);
         char[] buf = new char[len];
         int read, done = 0;
         while (done < len && (read = reader.read(buf, done, len - done)) != -1) {
@@ -289,7 +325,11 @@ public class LocalHttpServer {
             while ((l = procReader.readLine()) != null) {
                 sb.append(l).append("\n");
             }
-            p.waitFor();
+            boolean finished = p.waitFor(timeout, TimeUnit.SECONDS);
+            if (!finished) {
+                p.destroy();
+                sb.append("(超时 ").append(timeout).append("s 已终止)");
+            }
         } catch (Exception e) {
             sb.append("执行异常: ").append(e.getMessage());
         }
@@ -342,6 +382,253 @@ public class LocalHttpServer {
             }
             out.flush();
         }
+    }
+
+    // ===== 桥接端点(对标 HarkMulti teach 契约)=====
+
+    private static String queryParam(String uri, String key) {
+        int idx = uri.indexOf(key + "=");
+        if (idx < 0) return null;
+        String v = uri.substring(idx + key.length() + 1);
+        int amp = v.indexOf('&');
+        if (amp >= 0) v = v.substring(0, amp);
+        try {
+            return URLDecoder.decode(v, "UTF-8");
+        } catch (Exception e) {
+            return v;
+        }
+    }
+
+    private static int parseTimeout(String uri, int def) {
+        String t = queryParam(uri, "timeout");
+        if (t == null) return def;
+        try {
+            return Math.max(5, Math.min(600, Integer.parseInt(t.trim())));
+        } catch (Exception e) {
+            return def;
+        }
+    }
+
+    private static com.free.hark.linux.LinuxManager.Distro distroById(String id) {
+        if (id == null || id.isEmpty()) return null;
+        for (com.free.hark.linux.LinuxManager.Distro d : com.free.hark.linux.LinuxManager.Distro.values()) {
+            if (d.name().equalsIgnoreCase(id)) return d;
+        }
+        return null;
+    }
+
+    private void handleLinux(String uri, OutputStream out) throws Exception {
+        if (uri.contains("install=1")) {
+            String id = queryParam(uri, "id");
+            com.free.hark.linux.LinuxManager.Distro d = distroById(id);
+            if (d == null) {
+                sendResponse(out, "400 Bad Request", "text/plain", "unknown distro id (alpine/debian/ubuntu)".getBytes());
+                return;
+            }
+            JSONObject root = new JSONObject();
+            root.put("id", d.name().toLowerCase());
+            if (linuxManager.isInstalled(d)) {
+                root.put("installed", true);
+            } else if (installing.add(d.name())) {
+                linuxManager.installDistro(d, new com.free.hark.linux.LinuxManager.ProgressCallback() {
+                    @Override public void onProgress(String message, int percentage) {}
+                    @Override public void onSuccess() { installing.remove(d.name()); }
+                    @Override public void onError(String error) { installing.remove(d.name()); }
+                });
+                root.put("installStarted", true);
+            } else {
+                root.put("installStarted", true);
+                root.put("note", "already installing");
+            }
+            sendResponse(out, "200 OK", "application/json", root.toString().getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        JSONObject root = new JSONObject();
+        JSONArray arr = new JSONArray();
+        for (com.free.hark.linux.LinuxManager.Distro d : com.free.hark.linux.LinuxManager.Distro.values()) {
+            JSONObject o = new JSONObject();
+            o.put("id", d.name().toLowerCase());
+            o.put("title", d.title);
+            o.put("installed", linuxManager.isInstalled(d));
+            o.put("installing", installing.contains(d.name()));
+            arr.put(o);
+        }
+        root.put("distros", arr);
+        com.free.hark.linux.LinuxManager.Distro active = linuxManager.getActiveDistro();
+        root.put("active", active == null ? "" : active.name().toLowerCase());
+        sendResponse(out, "200 OK", "application/json", root.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void handleLinuxRun(String uri, BufferedReader reader, int len, OutputStream out) throws Exception {
+        String id = queryParam(uri, "id");
+        com.free.hark.linux.LinuxManager.Distro d = distroById(id);
+        if (d == null) d = linuxManager.getActiveDistro();
+        if (d == null || !linuxManager.isInstalled(d)) {
+            sendResponse(out, "400 Bad Request", "text/plain",
+                    "没装这个系统(id=debian/ubuntu/alpine,先 POST /api/linux?id=..&install=1)".getBytes());
+            return;
+        }
+        int timeout = parseTimeout(uri, 120);
+        char[] buf = new char[len];
+        int done = 0;
+        while (done < len) {
+            int r = reader.read(buf, done, len - done);
+            if (r == -1) break;
+            done += r;
+        }
+        String cmd = new String(buf, 0, done).trim();
+        if (cmd.isEmpty()) {
+            sendResponse(out, "400 Bad Request", "text/plain", "empty command".getBytes());
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        try {
+            Process p = linuxManager.buildPRootProcessFor(d, "/bin/sh", "-c", cmd)
+                    .redirectErrorStream(true).start();
+            BufferedReader pr = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
+            String l;
+            while ((l = pr.readLine()) != null) sb.append(l).append("\n");
+            boolean finished = p.waitFor(timeout, TimeUnit.SECONDS);
+            if (!finished) {
+                p.destroy();
+                sb.append("(超时 ").append(timeout).append("s 已终止)");
+            }
+        } catch (Exception e) {
+            sb.append("执行异常: ").append(e.getMessage());
+        }
+        sendResponse(out, "200 OK", "text/plain; charset=utf-8", sb.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void serveApiApps(OutputStream out) throws Exception {
+        android.content.pm.PackageManager pm = appContext.getPackageManager();
+        JSONArray arr = new JSONArray();
+        for (android.content.pm.PackageInfo pi : pm.getInstalledPackages(0)) {
+            JSONObject o = new JSONObject();
+            o.put("name", pi.applicationInfo.loadLabel(pm).toString());
+            o.put("pkg", pi.packageName);
+            arr.put(o);
+        }
+        JSONObject root = new JSONObject();
+        root.put("apps", arr);
+        sendResponse(out, "200 OK", "application/json", root.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void handleOpen(String uri, OutputStream out) throws Exception {
+        String name = queryParam(uri, "name");
+        String pkg = queryParam(uri, "pkg");
+        String url = queryParam(uri, "url");
+        android.content.pm.PackageManager pm = appContext.getPackageManager();
+        Intent intent = null;
+        if (pkg != null && !pkg.isEmpty()) {
+            intent = pm.getLaunchIntentForPackage(pkg);
+        } else if (name != null && !name.isEmpty()) {
+            for (android.content.pm.PackageInfo pi : pm.getInstalledPackages(0)) {
+                if (pi.applicationInfo.loadLabel(pm).toString().contains(name)) {
+                    intent = pm.getLaunchIntentForPackage(pi.packageName);
+                    if (intent != null) break;
+                }
+            }
+        } else if (url != null && !url.isEmpty()) {
+            intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        }
+        if (intent == null) {
+            sendResponse(out, "404 Not Found", "text/plain", "app not found".getBytes());
+            return;
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        appContext.startActivity(intent);
+        sendResponse(out, "200 OK", "text/plain", "OK".getBytes());
+    }
+
+    private void serveApiUsage(OutputStream out) throws Exception {
+        JSONArray arr = new JSONArray();
+        for (int i = 0; i < 4; i++) {
+            com.free.hark.token.TokenTracker.UsageInfo info = tokenTracker.getSlotUsage("slot" + i);
+            JSONObject o = new JSONObject();
+            o.put("slot", "slot" + i);
+            o.put("used", info.dailyUsed);
+            o.put("limit", info.dailyLimit);
+            o.put("percentage", info.getPercentage());
+            o.put("reset", info.resetsAt);
+            arr.put(o);
+        }
+        sendResponse(out, "200 OK", "application/json", arr.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private File siteDir(String uri) {
+        String name = queryParam(uri, "name");
+        if (name == null || name.isEmpty()) return null;
+        File dir = new File(siteManager.getSitesRoot(), new File(name).getName());
+        try {
+            if (!dir.getCanonicalPath().startsWith(siteManager.getSitesRoot().getCanonicalPath())) return null;
+        } catch (Exception e) {
+            return null;
+        }
+        return dir;
+    }
+
+    private void sitePut(String uri, InputStream in, int len, OutputStream out) throws Exception {
+        String path = queryParam(uri, "path");
+        File dir = siteDir(uri);
+        if (dir == null || path == null || path.isEmpty()) {
+            sendResponse(out, "400 Bad Request", "text/plain", "need name & path".getBytes());
+            return;
+        }
+        File f = new File(dir, path);
+        if (!f.getCanonicalPath().startsWith(dir.getCanonicalPath())) {
+            sendResponse(out, "403 Forbidden", "text/plain", "invalid path".getBytes());
+            return;
+        }
+        File parent = f.getParentFile();
+        if (parent != null) parent.mkdirs();
+        try (FileOutputStream fos = new FileOutputStream(f)) {
+            byte[] buf = new byte[8192];
+            int r, remain = len;
+            while (remain > 0 && (r = in.read(buf, 0, Math.min(buf.length, remain))) != -1) {
+                fos.write(buf, 0, r);
+                remain -= r;
+            }
+        }
+        sendResponse(out, "200 OK", "text/plain", "OK".getBytes());
+    }
+
+    private void siteList(OutputStream out) throws Exception {
+        JSONArray arr = new JSONArray();
+        for (String s : siteManager.listSites()) arr.put(s);
+        sendResponse(out, "200 OK", "application/json", arr.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void siteWalk(File dir, JSONArray arr) throws Exception {
+        File[] fs = dir.listFiles();
+        if (fs == null) return;
+        for (File f : fs) {
+            if (f.isDirectory()) siteWalk(f, arr);
+            else {
+                JSONObject o = new JSONObject();
+                o.put("path", dir.toPath().relativize(f.toPath()).toString().replace('\\', '/'));
+                o.put("size", f.length());
+                arr.put(o);
+            }
+        }
+    }
+
+    private void siteFiles(String uri, OutputStream out) throws Exception {
+        File dir = siteDir(uri);
+        JSONArray arr = new JSONArray();
+        if (dir != null && dir.exists()) siteWalk(dir, arr);
+        sendResponse(out, "200 OK", "application/json", arr.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void deleteRecursive(File f) {
+        File[] fs = f.listFiles();
+        if (fs != null) for (File c : fs) deleteRecursive(c);
+        f.delete();
+    }
+
+    private void siteRm(String uri, OutputStream out) throws Exception {
+        File dir = siteDir(uri);
+        if (dir != null && dir.exists()) deleteRecursive(dir);
+        sendResponse(out, "200 OK", "text/plain", "OK".getBytes());
     }
 
     private void sendResponse(OutputStream out, String status, String mime, byte[] data) throws Exception {
