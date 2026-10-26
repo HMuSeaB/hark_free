@@ -283,9 +283,62 @@ public abstract class SlotActivity extends AppCompatActivity {
                     "}" +
                     "})();";
             webView.evaluateJavascript(script, null);
+            injectWeChatRuntime();
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 微信绿运行时引擎:不依赖 hark.com 的 class/testid(它们随时会改版),
+     * 直接用 API 角色映射 + 文本匹配,给气泡上内联样式。
+     */
+    private void injectWeChatRuntime() {
+        String script = "(function() {" +
+                "var HM = window.__harkFree = window.__harkFree || {};" +
+                "function norm(s){return (s||'').replace(/\\s+/g,' ').trim().slice(0,120);}" +
+                "function apply() {" +
+                "  var map = HM.roleMap || {};" +
+                "  if(!Object.keys(map).length) return;" +
+                "  if(!HM.doneText) HM.doneText = new WeakSet();" +
+                "  if(!HM.doneEls) HM.doneEls = new WeakSet();" +
+                "  var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);" +
+                "  var hits = [];" +
+                "  while(walker.nextNode()) {" +
+                "    var t = walker.currentNode;" +
+                "    if(HM.doneText.has(t)) continue;" +
+                "    var role = map[norm(t.textContent)];" +
+                "    if(role) hits.push([t, role]);" +
+                "  }" +
+                "  hits.forEach(function(pair) {" +
+                "    var t = pair[0], role = pair[1];" +
+                "    var el = t.parentElement; if(!el) return;" +
+                "    var bubble = el;" +
+                "    for(var i=0;i<8;i++) {" +
+                "      var w = bubble.getBoundingClientRect().width;" +
+                "      if(w < window.innerWidth * 0.85) break;" +
+                "      if(!bubble.parentElement) break;" +
+                "      bubble = bubble.parentElement;" +
+                "    }" +
+                "    if(HM.doneEls.has(bubble)) { HM.doneText.add(t); return; }" +
+                "    HM.doneEls.add(bubble);" +
+                "    HM.doneText.add(t);" +
+                "    bubble.style.background = role === 'me' ? '#95EC69' : '#FFFFFF';" +
+                "    bubble.style.color = '#111111';" +
+                "    bubble.style.borderRadius = '10px';" +
+                "    bubble.style.padding = '9px 13px';" +
+                "    bubble.style.boxShadow = 'none';" +
+                "    bubble.style.maxWidth = '80%';" +
+                "    bubble.style.marginLeft = role === 'me' ? 'auto' : '0';" +
+                "    bubble.style.marginRight = role === 'me' ? '0' : 'auto';" +
+                "    var kids = bubble.querySelectorAll('*');" +
+                "    for(var k=0;k<kids.length;k++) kids[k].style.color = '#111111';" +
+                "  });" +
+                "}" +
+                "apply();" +
+                "setInterval(apply, 1200);" +
+                "})();";
+        webView.evaluateJavascript(script, null);
     }
 
     // ===== 账号档案(HarkMulti 同款机制的自研实现):Cookie 快照/恢复,单槽位无限账号秒切 =====
