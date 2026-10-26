@@ -39,6 +39,8 @@ public abstract class SlotActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private MaterialButton btnToggleStyle;
     private boolean isWeChatStyleActive = false;
+    // 当前槽位 ID(账号档案 key 与 Token 同步共用;onCreate 中按 Intent 实际值赋值)
+    private String currentSlotId = "slot0";
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -71,7 +73,12 @@ public abstract class SlotActivity extends AppCompatActivity {
         if (slotId == null || slotId.isEmpty()) {
             slotId = "slot0";
         }
-        final String currentSlotId = slotId;
+        currentSlotId = slotId;
+
+        // 槽位自定义启动 URL:MainActivity 长按卡片设置,缺省回落 hark.com
+        String customUrl = getIntent().getStringExtra("SLOT_URL");
+        final String startUrl = (customUrl != null && !customUrl.trim().isEmpty())
+                ? customUrl.trim() : "https://hark.com/";
 
         btnBack.setOnClickListener(v -> {
             if (webView.canGoBack()) {
@@ -84,14 +91,23 @@ public abstract class SlotActivity extends AppCompatActivity {
         // 切换微信绿排版
         btnToggleStyle.setOnClickListener(v -> toggleWeChatStyle());
 
-        // 执行 Markdown 导出引擎
-        btnExportMd.setOnClickListener(v -> runExportEngine());
+        // 执行 Markdown 导出引擎(普通点击=当前会话,长按=全部会话)
+        btnExportMd.setOnClickListener(v -> {
+            webView.evaluateJavascript("window.__hmExportMode='current';", null);
+            runExportEngine();
+        });
+        btnExportMd.setOnLongClickListener(v -> {
+            Toast.makeText(this, "长按=导出全部会话", Toast.LENGTH_SHORT).show();
+            webView.evaluateJavascript("window.__hmExportMode='all';", null);
+            runExportEngine();
+            return true;
+        });
 
-        initWebView(currentSlotId);
+        initWebView(currentSlotId, startUrl);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private void initWebView(String currentSlotId) {
+    private void initWebView(String currentSlotId, String startUrl) {
         // WebView 远程调试:USB 连接电脑后 chrome://inspect 可直接查看真实 DOM(样式/导出契约取证)
         android.webkit.WebView.setWebContentsDebuggingEnabled(true);
         WebSettings settings = webView.getSettings();
@@ -124,18 +140,21 @@ public abstract class SlotActivity extends AppCompatActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                // 页面加载完成时注入气泡归属检测脚本与Token同步脚本
-                injectBubbleObserver();
-                injectTokenSync(currentSlotId);
-                injectCleanLogin();
-                if (isWeChatStyleActive) {
-                    injectWeChatCss();
+                // 仅在 hark.com 页面注入脚本,避免污染槽位自定义的第三方网站
+                if (url != null && url.contains("hark.com")) {
+                    // 页面加载完成时注入气泡归属检测脚本与Token同步脚本
+                    injectBubbleObserver();
+                    injectTokenSync(currentSlotId);
+                    injectCleanLogin();
+                    if (isWeChatStyleActive) {
+                        injectWeChatCss();
+                    }
                 }
             }
         });
 
-        // 加载 Hark 官方网址
-        webView.loadUrl("https://hark.com/");
+        // 加载槽位启动地址(自定义 URL 或 Hark 官方网址)
+        webView.loadUrl(startUrl);
     }
 
     /** 隐藏 hark.com 官方 App 推广横幅,让登录页更干净 */
@@ -391,9 +410,14 @@ public abstract class SlotActivity extends AppCompatActivity {
     }
 
     /**
-     * 执行无损 Markdown 导出引擎
+     * 执行无损 Markdown 导出引擎(仅限 hark.com 页面;模式由 window.__hmExportMode 决定)
      */
     private void runExportEngine() {
+        String pageUrl = webView.getUrl();
+        if (pageUrl == null || !pageUrl.contains("hark.com")) {
+            Toast.makeText(this, "导出引擎仅支持 hark.com 会话页面", Toast.LENGTH_SHORT).show();
+            return;
+        }
         try {
             InputStream is = getAssets().open("export_engine.js");
             int size = is.available();

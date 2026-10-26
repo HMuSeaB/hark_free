@@ -77,6 +77,12 @@ public class MainActivity extends AppCompatActivity {
         cardSlot2.setOnClickListener(v -> launchSlot(SlotActivity.Slot2.class, "账号槽位 3", "slot2"));
         cardSlot3.setOnClickListener(v -> launchSlot(SlotActivity.Slot3.class, "账号槽位 4", "slot3"));
 
+        // 长按槽位卡片:自定义该槽位的启动 URL(默认仍为 hark.com)
+        cardSlot0.setOnLongClickListener(v -> { showSlotUrlDialog("slot0", "账号槽位 1"); return true; });
+        cardSlot1.setOnLongClickListener(v -> { showSlotUrlDialog("slot1", "账号槽位 2"); return true; });
+        cardSlot2.setOnLongClickListener(v -> { showSlotUrlDialog("slot2", "账号槽位 3"); return true; });
+        cardSlot3.setOnLongClickListener(v -> { showSlotUrlDialog("slot3", "账号槽位 4"); return true; });
+
         // 终端入口
         btnOpenTerm.setOnClickListener(v -> {
             Intent intent = new Intent(this, TermActivity.class);
@@ -97,7 +103,41 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, slotClass);
         intent.putExtra("SLOT_NAME", slotName);
         intent.putExtra("SLOT_ID", slotId);
+        // 槽位自定义启动 URL:用户长按卡片设置,留空则回落 hark.com
+        String customUrl = slotUrl(slotId);
+        if (customUrl != null && !customUrl.trim().isEmpty()) {
+            intent.putExtra("SLOT_URL", customUrl.trim());
+        }
         startActivity(intent);
+    }
+
+    /** 读取槽位自定义启动 URL(SharedPreferences "slot_urls",默认空 = 使用 hark.com) */
+    private String slotUrl(String slotId) {
+        return getSharedPreferences("slot_urls", MODE_PRIVATE).getString(slotId, "");
+    }
+
+    /** 长按槽位卡片弹窗:设置/清除该槽位的自定义启动 URL */
+    private void showSlotUrlDialog(String slotId, String slotName) {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setHint("https://example.com(留空并保存 = 恢复默认)");
+        input.setText(slotUrl(slotId));
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("自定义启动 URL · " + slotName)
+                .setView(input)
+                .setPositiveButton("保存", (d, w) -> {
+                    String url = input.getText().toString().trim();
+                    if (!url.isEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
+                        url = "https://" + url;
+                    }
+                    getSharedPreferences("slot_urls", MODE_PRIVATE).edit().putString(slotId, url).apply();
+                    Toast.makeText(this, url.isEmpty() ? "已清除,下次进入恢复 hark.com" : "已保存,下次进入槽位生效", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("恢复默认", (d, w) -> {
+                    getSharedPreferences("slot_urls", MODE_PRIVATE).edit().remove(slotId).apply();
+                    Toast.makeText(this, "已恢复默认(hark.com)", Toast.LENGTH_SHORT).show();
+                })
+                .setNeutralButton("取消", null)
+                .show();
     }
 
     private void refreshUsageDisplay() {

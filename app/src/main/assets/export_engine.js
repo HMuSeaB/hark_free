@@ -1,9 +1,11 @@
 /**
  * HarkFree 会话无损导出引擎 (纯净版)
  * 提取当前会话或全部会话的历史记录，并生成高保真 Markdown 文本，交由 Android 原生保存。
+ * 模式由 window.__hmExportMode 控制：'current'（默认，仅当前/主会话）| 'all'（全部会话合并一个文件）
  */
 (async function() {
     var Bridge = window.HarkNativeBridge;
+    var MODE = window.__hmExportMode || 'current';
     function log(msg) {
         if (Bridge && Bridge.onExportProgress) {
             Bridge.onExportProgress(msg);
